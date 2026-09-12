@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.errors import APIError
@@ -34,6 +34,21 @@ class RecommendationsOut(BaseModel):
     items: list[RecommendationItemOut]
 
 
+def _evidence_union(claims: list[Claim]) -> list[str]:
+    return sorted({eid for c in claims for eid in (c.evidence_ids or [])})
+
+
+def _headline(*, common_signals: list[str], differences: list[str], unknowns: list[str]) -> str:
+    parts: list[str] = []
+    if common_signals:
+        parts.append("有一些共同点")
+    if differences:
+        parts.append("也有一些差异")
+    if unknowns:
+        parts.append("还需要继续了解")
+    return "，".join(parts) if parts else "可以从一个具体生活场景开始了解"
+
+
 def _build_item(*, me_claims: list[Claim], cand: User, cand_claims: list[Claim]) -> RecommendationItem:
     me_by_dim = {c.dimension: c.value for c in me_claims}
     cand_by_dim = {c.dimension: c.value for c in cand_claims}
@@ -43,22 +58,22 @@ def _build_item(*, me_claims: list[Claim], cand: User, cand_claims: list[Claim])
     unknown_dims = [d for d in me_by_dim.keys() - cand_by_dim.keys()]
 
     common_signals = [f"你们在「{d}」上的选择比较接近" for d in common_dims[:1]]
-    differences = [f"你们在「{d}」上的期待可能不同" for d in diff_dims[:1]]
+    differences = [f"你们对「{d}」的期待可能不同" for d in diff_dims[:1]]
     unknowns = [f"现在还不知道对方在「{d}」上的选择" for d in unknown_dims[:1]]
     how_to_continue = ["可以从一个具体生活场景开始聊"]
 
-    headline = "目前重视生活平衡，也在确认未来节奏"
+    evidence_ids = _evidence_union(cand_claims)
     return RecommendationItem(
         id=new_id(),
         session_id="",
         user_id=0,
         candidate_id=int(cand.id),
-        headline=headline,
+        headline=_headline(common_signals=common_signals, differences=differences, unknowns=unknowns),
         common_signals=common_signals,
         differences=differences,
         unknowns=unknowns,
         how_to_continue=how_to_continue,
-        evidence_ids=[],
+        evidence_ids=evidence_ids,
     )
 
 
@@ -79,18 +94,21 @@ def _candidate_pool(*, db: Session, me_id: int, limit: int) -> list[User]:
     if not candidate_ids:
         return []
 
-    candidates = (
-        db.execute(select(User).where(User.id.in_(candidate_ids)).order_by(User.id.asc()).limit(limit))
-        .scalars()
-        .all()
+    coverage = dict(
+        db.execute(
+            select(Claim.user_id, func.count(func.distinct(Claim.dimension)))
+            .where(Claim.user_id.in_(candidate_ids))
+            .group_by(Claim.user_id)
+        ).all()
     )
-    return candidates
+
+    candidates = db.execute(select(User).where(User.id.in_(candidate_ids))).scalars().all()
+    candidates.sort(key=lambda u: (-int(coverage.get(u.id, 0)), int(u.id)))
+    return candidates[:limit]
 
 
 @router.post("", response_model=RecommendationsOut, dependencies=[Depends(require_consent("matching:v1"))])
-def create_recommendations(
-    user: CurrentUser, db: SessionDep
-) -> RecommendationsOut:
+def create_recommendations(user: CurrentUser, db: SessionDep) -> RecommendationsOut:
     me_claims = db.execute(select(Claim).where(Claim.user_id == user.id)).scalars().all()
     candidates = _candidate_pool(db=db, me_id=int(user.id), limit=10)
 
@@ -174,3 +192,4 @@ def get_recommendation(
             )
         ],
     )
+
