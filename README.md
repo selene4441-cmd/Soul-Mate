@@ -8,6 +8,7 @@
 
 - `docs/matching-metrics-v0.1.md`
 - `docs/conversation-product-design-v0.1.md` (后续交流产品设计基线)
+- `docs/conversation-technical-architecture-v0.1.md` (后续交流技术方案)
 - `docs/web-technical-architecture-v0.1.md`
 
 ## 当前交付
