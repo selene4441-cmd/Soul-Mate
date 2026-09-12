@@ -53,9 +53,33 @@ def _coerce(value: Any) -> Any:
     return value
 
 
+def _deep_first(payload: Any, key: str) -> Any:
+    for node in _walk(payload):
+        if key in node and node[key] not in (None, "", []):
+            return node[key]
+    return None
+
+
+def _extract_interaction_count(payload: Any) -> Any:
+    interactions = _deep_first(payload, "interactions")
+    if isinstance(interactions, list):
+        for item in interactions:
+            if isinstance(item, dict) and item.get("type") == "interaction":
+                return item.get("count")
+    return _deep_first(payload, "liked")
+
+
+def _extract_notes_count(payload: Any) -> Any:
+    stat = _deep_first(payload, "note_num_stat")
+    if isinstance(stat, dict) and stat.get("posted") is not None:
+        return stat.get("posted")
+    return _deep_first(payload, "posted")
+
+
 def extract_user_fields(payload: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     nodes = list(_walk(payload))
+
     for field, aliases in FIELD_ALIASES.items():
         for node in nodes:
             for alias in aliases:
@@ -67,12 +91,18 @@ def extract_user_fields(payload: Any) -> dict[str, Any]:
             if field in fields:
                 break
 
+    if "notes_count" not in fields:
+        fields["notes_count"] = _extract_notes_count(payload)
+    if "interaction_count" not in fields:
+        fields["interaction_count"] = _extract_interaction_count(payload)
+
     for field in ("followers_count", "following_count", "notes_count", "interaction_count"):
         if field in fields and fields[field] is not None:
             try:
                 fields[field] = int(fields[field])
             except (TypeError, ValueError):
                 fields[field] = None
+
     return fields
 
 
@@ -118,6 +148,8 @@ class TikhubClient:
 
         if response.status_code == 401:
             raise TikhubError("Tikhub API Key 无效或未配置", status_code=401)
+        if response.status_code == 402:
+            raise TikhubError("Tikhub 余额不足，请先充值", status_code=402)
         if response.status_code >= 400:
             raise TikhubError(
                 f"Tikhub 返回 HTTP {response.status_code}",
