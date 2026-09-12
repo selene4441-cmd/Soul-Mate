@@ -100,7 +100,23 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    void load().finally(() => setReady(true));
+    void (async () => {
+      // 深链接：/?login=demo1@example.com 直接用内置演示账号进入（非演示邮箱会被忽略）
+      const requested =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("login")
+          : null;
+      const account = requested ? DEMO_ACCOUNTS.find((a) => a.email === requested) : undefined;
+      if (account) {
+        try {
+          await postJson("/auth/login", { email: account.email, password: DEMO_PASSWORD });
+        } catch {
+          // 登录失败就让用户手动选账号，不阻塞页面
+        }
+      }
+      await load();
+      setReady(true);
+    })();
   }, [load]);
 
   async function run(key: string, fn: () => Promise<void>) {

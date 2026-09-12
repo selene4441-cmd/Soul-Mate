@@ -6,6 +6,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.errors import APIError
+from app.api.v1.questionnaire_def import QUESTIONNAIRE
 from app.api.v1.security import CurrentUser, SessionDep, as_utc, new_id, require_consent
 from app.models import Claim, Consent, RecommendationItem, RecommendationSession, User
 
@@ -38,6 +39,36 @@ def _evidence_union(claims: list[Claim]) -> list[str]:
     return sorted({eid for c in claims for eid in (c.evidence_ids or [])})
 
 
+def _label_maps() -> tuple[dict[str, str], dict[tuple[str, str], str]]:
+    """维度键 / 选项值 → 面向用户的中文说法（取问卷的 section 与选项 label）。
+
+    内部键（如 ``life_weekend``）只用于数据层，不能出现在给用户看的文案里。
+    """
+    dimensions: dict[str, str] = {}
+    options: dict[tuple[str, str], str] = {}
+    for question in QUESTIONNAIRE.get("questions", []):
+        dimension = str(question.get("dimension") or "")
+        if not dimension:
+            continue
+        dimensions[dimension] = str(question.get("section") or dimension)
+        for option in question.get("options") or []:
+            value = str(option.get("value") or "")
+            if value:
+                options[(dimension, value)] = str(option.get("label") or value)
+    return dimensions, options
+
+
+DIMENSION_LABELS, OPTION_LABELS = _label_maps()
+
+
+def _dimension_label(dimension: str) -> str:
+    return DIMENSION_LABELS.get(dimension, dimension)
+
+
+def _option_label(dimension: str, value: str) -> str:
+    return OPTION_LABELS.get((dimension, value), value)
+
+
 def _headline(*, common_signals: list[str], differences: list[str], unknowns: list[str]) -> str:
     parts: list[str] = []
     if common_signals:
@@ -57,9 +88,23 @@ def _build_item(*, me_claims: list[Claim], cand: User, cand_claims: list[Claim])
     diff_dims = [d for d in me_by_dim.keys() & cand_by_dim.keys() if me_by_dim[d] != cand_by_dim[d]]
     unknown_dims = [d for d in me_by_dim.keys() - cand_by_dim.keys()]
 
-    common_signals = [f"你们在「{d}」上的选择比较接近" for d in common_dims[:1]]
-    differences = [f"你们对「{d}」的期待可能不同" for d in diff_dims[:1]]
-    unknowns = [f"现在还不知道对方在「{d}」上的选择" for d in unknown_dims[:1]]
+    common_signals = [
+        f"你们在「{_dimension_label(d)}」上的选择比较接近：{_option_label(d, me_by_dim[d])}"
+        for d in common_dims[:1]
+    ]
+    differences = [
+        f"在「{_dimension_label(d)}」上，你选了「{_option_label(d, me_by_dim[d])}」，"
+        f"对方选了「{_option_label(d, cand_by_dim[d])}」——期待可能不同，不一定是问题"
+        for d in diff_dims[:1]
+    ]
+    unknowns = [f"还不知道对方在「{_dimension_label(d)}」上的选择" for d in unknown_dims[:1]]
+    if not unknowns and common_dims:
+        # 双方都答完了：如实说出「还没验证过」，保证「还不确定」区块永远有内容（产品红线）
+        first_common = common_dims[0]
+        unknowns = [
+            f"「{_dimension_label(first_common)}」上你们的选择接近，"
+            f"但那只是问卷里的选择，还没有在真实相处里验证过"
+        ]
     how_to_continue = ["可以从一个具体生活场景开始聊"]
 
     evidence_ids = _evidence_union(cand_claims)
