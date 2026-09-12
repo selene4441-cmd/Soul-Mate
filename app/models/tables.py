@@ -157,3 +157,49 @@ class MatchCache(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class Relationship(Base):
+    __tablename__ = "relationships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_a: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    user_b: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
+    alpha: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    beta: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    signals: Mapped[list[RelationshipSignal]] = relationship(
+        back_populates="relationship", cascade="all, delete-orphan"
+    )
+
+
+class RelationshipSignal(Base):
+    __tablename__ = "relationship_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    relationship_id: Mapped[int] = mapped_column(
+        ForeignKey("relationships.id"), nullable=False, index=True
+    )
+
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    weight: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    relationship: Mapped[Relationship] = relationship(back_populates="signals")

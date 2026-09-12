@@ -6,6 +6,8 @@ from app.models.tables import (
     Elicitation,
     MatchCache,
     Profile,
+    Relationship,
+    RelationshipSignal,
     Response,
     User,
 )
@@ -19,6 +21,8 @@ __all__ = [
     "ElicitationKind",
     "MatchCache",
     "Profile",
+    "Relationship",
+    "RelationshipSignal",
     "Response",
     "User",
 ]
