@@ -27,6 +27,11 @@ def test_alembic_upgrade_head_on_empty_db_creates_relationship_tables(
     names = set(inspector.get_table_names())
     assert "relationships" in names
     assert "relationship_signals" in names
+    assert "conversations" in names
+    assert "messages" in names
+
+    cols = {c["name"] for c in inspector.get_columns("users")}
+    assert "consent_scopes" in cols
 
 
 def test_relationship_posterior_replays_from_signals(session: Session) -> None:
