@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.core.config import settings
+from app.core.db import ensure_sqlite_parent_dir
 from app.models import Base
 
 config = context.config
@@ -19,7 +20,10 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    return os.getenv("DATABASE_URL", settings.database_url)
+    url = os.getenv("DATABASE_URL", settings.database_url)
+    # 新克隆的副本里可能没有 data/ 目录，SQLite 不会自己建目录
+    ensure_sqlite_parent_dir(url)
+    return url
 
 
 def run_migrations_offline() -> None:
@@ -57,4 +61,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

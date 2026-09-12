@@ -65,6 +65,8 @@ function Test-OurBackendUp([string]$baseUrl) {
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+# data/ 被 gitignore，新克隆/解压的副本里可能没有；SQLite 不会自己建目录
+New-Item -ItemType Directory -Force -Path (Join-Path $soulmateDir 'data') | Out-Null
 
 Step '检查依赖'
 foreach ($cmd in @('python', 'node', 'npm')) {
