@@ -6,13 +6,12 @@ import importlib.util
 import json
 import sys
 import threading
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any
-
-import tomllib
 
 from app.core.config import settings
 

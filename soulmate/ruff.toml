@@ -1,0 +1,22 @@
+# SoulMate Agent 子项目的独立 ruff 配置。
+#
+# 为什么需要它：本仓库根目录是同频（Tongpin）项目，其 pyproject.toml 里带
+# [tool.ruff] 规则集；ruff 会向上查找配置，导致 soulmate/ 子项目被动继承
+# 另一套规则。这里显式声明本项目自己的规则集，两个项目互不影响。
+
+target-version = "py312"
+line-length = 110
+
+[lint]
+select = ["E", "F", "I", "B", "SIM"]
+ignore = [
+    "B904",     # except 中 raise ... from：既有实现保留，后续单独收紧
+    "UP042",    # str + Enum 继承：与既有数据模型（BehaviorEventType 等）保持一致
+    "E501",     # 长行交由 formatter 处理，不作为提交门槛
+    "SIM108",   # if/else 与三元表达式：保留更易读的 if/else 写法
+]
+
+[lint.per-file-ignores]
+# 这些脚本必须先注入 sys.path（使 app 包可导入），再导入 app 模块，
+# 因此模块级导入必然不在文件顶部。
+"scripts/*.py" = ["E402"]
