@@ -165,23 +165,6 @@ def collect_identifiers(
     return results
 
 
-def resolve_lead(db: Session, lead_id: int, parsed: ParsedIdentifier, client: TikhubClient) -> XhsUser:
-    lead = db.get(XhsUser, lead_id)
-    if lead is None:
-        raise ValueError("记录不存在")
-
-    fields = client.fetch_user(parsed)
-    user_id = fields.get("user_id")
-    if user_id:
-        existing = _get_by_user_id(db, user_id)
-        if existing is not None and existing.id != lead_id:
-            raise ValueError(f"该用户已存在于记录 #{existing.id}，无需重复添加")
-
-    _apply_fields(lead, parsed, fields)
-    db.commit()
-    db.refresh(lead)
-    return lead
-
 def refresh_all(db: Session, client: TikhubClient, interval: float = 0.3) -> dict[str, int]:
     """Incrementally refresh fans/notes counts for every fetched lead with a user_id."""
     leads = db.execute(
@@ -212,26 +195,47 @@ def refresh_all(db: Session, client: TikhubClient, interval: float = 0.3) -> dic
     db.commit()
     return {"total": total, "refreshed": refreshed, "failed": failed}
 
+
+def resolve_lead(db: Session, lead_id: int, parsed: ParsedIdentifier, client: TikhubClient) -> XhsUser:
+    lead = db.get(XhsUser, lead_id)
+    if lead is None:
+        raise ValueError("记录不存在")
+
+    fields = client.fetch_user(parsed)
+    user_id = fields.get("user_id")
+    if user_id:
+        existing = _get_by_user_id(db, user_id)
+        if existing is not None and existing.id != lead_id:
+            raise ValueError(f"该用户已存在于记录 #{existing.id}，无需重复添加")
+
+    _apply_fields(lead, parsed, fields)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
 def _get_note_by_id(db: Session, note_id: str) -> XhsNote | None:
     return db.execute(select(XhsNote).where(XhsNote.note_id == note_id)).scalar_one_or_none()
 
 
 def _apply_note_fields(note: XhsNote, data: dict[str, Any]) -> None:
-    note.title = data.get("title")
-    note.desc = data.get("desc")
-    note.note_type = data.get("note_type")
-    note.likes = data.get("likes")
-    note.comments_count = data.get("comments_count")
-    note.collected_count = data.get("collected_count")
-    note.share_count = data.get("share_count")
-    note.ip_location = data.get("ip_location")
-    note.images = json.dumps(data.get("images") or [], ensure_ascii=False)
-    note.tags = json.dumps(data.get("tags") or [], ensure_ascii=False)
-    note.note_url = data.get("note_url")
-    if data.get("published_at"):
-        note.published_at = datetime.fromtimestamp(data["published_at"], tz=timezone.utc).replace(tzinfo=None)
-    if data.get("raw_json"):
-        note.raw_json = data.get("raw_json")
+    for field, value in data.items():
+        if value is None:
+            continue
+        if isinstance(value, str) and value == "":
+            continue
+
+        if field == "images":
+            note.images = json.dumps(value or [], ensure_ascii=False)
+        elif field == "tags":
+            note.tags = json.dumps(value or [], ensure_ascii=False)
+        elif field == "published_at":
+            note.published_at = datetime.fromtimestamp(value, tz=timezone.utc).replace(tzinfo=None)
+        elif field == "raw_json":
+            note.raw_json = value
+        elif hasattr(note, field) and field not in {"id", "lead_id", "note_id"}:
+            setattr(note, field, value)
+
     note.last_synced_at = utcnow()
     note.sync_error = None
 
