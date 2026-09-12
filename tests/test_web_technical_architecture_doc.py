@@ -1,12 +1,7 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-
-DOC_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "docs"
-    / "web-technical-architecture-v0.1.md"
-)
+DOC_PATH = Path(__file__).resolve().parents[1] / "docs" / "web-technical-architecture-v0.1.md"
 
 
 class WebTechnicalArchitectureDocumentTest(unittest.TestCase):

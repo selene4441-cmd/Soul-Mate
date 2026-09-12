@@ -1,6 +1,5 @@
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 DOC_PATH = Path(__file__).resolve().parents[1] / "docs" / "matching-metrics-v0.1.md"
 

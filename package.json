@@ -1,0 +1,16 @@
+{
+  "name": "tongpin-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter tongpin-web dev",
+    "build": "pnpm --filter tongpin-web build",
+    "test": "pnpm --filter tongpin-web test",
+    "typecheck": "pnpm --filter tongpin-web typecheck",
+    "contracts": "pnpm --filter tongpin-web contracts"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

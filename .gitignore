@@ -179,3 +179,15 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Local application runtimes and build outputs
+.python312/
+.python312-*.exe
+.python312-*.zip
+.python-bootstrap/
+.pnpm-store/
+node_modules/
+.next/
+apps/web/.next/
+apps/web/node_modules/
+*.db
+*.tsbuildinfo
