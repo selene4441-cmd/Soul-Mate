@@ -37,7 +37,7 @@ tests/                        后端集成、契约和文档回归测试
 
 ## Codex Skill
 
-仓库内置了项目级技能 [`.agents/skills/tongpin/SKILL.md`](.agents/skills/tongpin/SKILL.md)。在仓库中打开 Codex 后，可以显式调用：
+仓库根目录提供自包含单文件 [`tongpin.skill.md`](tongpin.skill.md)，适合直接分享；Codex 自动发现所需的标准技能目录是 [`.agents/skills/tongpin/SKILL.md`](.agents/skills/tongpin/SKILL.md)。在仓库中打开 Codex 后，可以显式调用：
 
 ```text
 $tongpin 启动同频并带我走完一次完整流程

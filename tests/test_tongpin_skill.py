@@ -41,3 +41,13 @@ def test_readme_exposes_the_project_skill():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert ".agents/skills/tongpin/SKILL.md" in readme
     assert "$tongpin" in readme
+
+
+def test_single_file_skill_is_in_sync_with_standard_skill():
+    skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    operations = (SKILL_DIR / "references" / "operations.md").read_text(encoding="utf-8")
+    single_file = (ROOT / "tongpin.skill.md").read_text(encoding="utf-8")
+    operations_body = operations.split("\n", 1)[1].lstrip()
+    expected = skill.rstrip() + "\n\n---\n\n# Operations reference\n\n" + operations_body
+    assert single_file == expected
+    assert "TODO" not in single_file
