@@ -14,6 +14,7 @@ from app.core.belief import entropy as bernoulli_entropy
 from app.core.config import settings
 from app.core.costlog import CostEvent, append_cost_event, now_iso_utc
 from app.core.openai_compat import OpenAICompatClient
+from app.core.prompts import get_prompt
 from app.models import MatchCache, Profile, User
 
 
@@ -35,18 +36,24 @@ class OpenAICompatRerankClient:
     def rerank(
         self, *, user_summary: str, candidates: list[tuple[int, float, str]]
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        # 候选过多会让 JSON 超出 token 上限被截断：只把余弦相似度最高的前 20 个交给 LLM 重排
+        # Candidate lists can be long; keep only top-20 by cosine to reduce JSON truncation risk.
         candidates = list(candidates)[:20]
 
         client = OpenAICompatClient(base_url=self.base_url, api_key=self.api_key)
-        system = (
-            "你是中文匹配推荐助手。任务：对候选人进行重排，并给出每位候选人的匹配分与理由。"
-            "要求：理由必须引用双方画像中的具体表述（用中文引号「」原样引用）。"
-            "输出必须是严格 JSON："
-            '{"ranked":[{"user_id":<int>,"score":<0-1 float>,"reasons":[<string>,...]},...]}'
-            "不要输出任何额外文本。每个 reasons 建议 2-4 条。ranked 必须只包含输入 candidates 中的 user_id，且保持从高到低排序。"
+        system_default = (
+            "你是中文匹配推荐助手。任务：对候选人进行重排，并输出“为什么是TA”的叙事。\n"
+            "要求：\n"
+            "1) 所有要点必须引用双方画像中的具体表述，用中文引号「」原样引用。\n"
+            "2) 输出必须是严格 JSON，不要输出任何额外文本。\n"
+            "3) ranked 必须只包含输入 candidates 里的 user_id，并按匹配度从高到低排序。\n"
+            "4) 每个候选对象必须包含：user_id, score(0-1 float), shared, differences, rare_common, worldviews, why_this_person。\n"
+            "   - shared/differences/rare_common/worldviews 为非空字符串数组（建议每项 2-4 条）。\n"
+            "   - why_this_person 为一句话（非空）。\n"
+            '输出 JSON 结构：{"ranked":[{"user_id":1,"score":0.83,"shared":["..."],"differences":["..."],"rare_common":["..."],"worldviews":["..."],"why_this_person":"..."}]}'
         )
-        cand_lines = []
+        system = get_prompt(key="match_agent.system", default=system_default)
+
+        cand_lines: list[dict[str, Any]] = []
         for uid, sim, summary in candidates:
             cand_lines.append(
                 {
@@ -71,8 +78,7 @@ class OpenAICompatRerankClient:
             "completion_tokens": result.usage.completion_tokens,
             "total_tokens": result.usage.total_tokens,
         }
-        data = _parse_ranked(result.content)
-        ranked = list(data)
+        ranked = list(_parse_ranked(result.content))
         return ranked, usage
 
 
@@ -84,6 +90,7 @@ def _parse_ranked(text: str) -> list[dict[str, Any]]:
     if raw.startswith("```"):
         raw = re.sub(r"^```[a-zA-Z]*\s*", "", raw)
         raw = re.sub(r"\s*```\s*$", "", raw)
+
     parsed: list[dict[str, Any]] | None = None
     try:
         data = json.loads(raw)
@@ -92,18 +99,21 @@ def _parse_ranked(text: str) -> list[dict[str, Any]]:
             parsed = list(ranked)
     except (json.JSONDecodeError, KeyError, TypeError):
         parsed = None
+
     if parsed is not None:
         return parsed
+
     salvaged: list[dict[str, Any]] = []
-    pattern = re.compile(r'\{\s*"user_id"\s*:\s*\d+.*?"reasons"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
+    pattern = re.compile(r'\{\s*"user_id"\s*:\s*\d+.*?\}', re.DOTALL)
     for m in pattern.finditer(raw):
         try:
             salvaged.append(json.loads(m.group(0)))
         except json.JSONDecodeError:
             continue
+
     if salvaged:
         return salvaged
-    raise ValueError(f"rerank 输出无法解析为 JSON（长度 {len(text)}）：{text[:200]}")
+    raise ValueError(f"rerank 输出无法解析为 JSON（长度={len(text)}）：{text[:200]}")
 
 
 def build_rerank_client_from_env() -> OpenAICompatRerankClient:
@@ -113,6 +123,49 @@ def build_rerank_client_from_env() -> OpenAICompatRerankClient:
     if not base_url or not api_key:
         raise RuntimeError("OPENAI_BASE_URL and OPENAI_API_KEY must be set to call reranker.")
     return OpenAICompatRerankClient(base_url=base_url, api_key=api_key, chat_model=chat_model)
+
+
+def _as_str_list(val: Any) -> list[str]:
+    if not isinstance(val, list):
+        return []
+    out: list[str] = []
+    for item in val:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+    return out
+
+
+def _normalize_narrative(item: dict[str, Any]) -> dict[str, Any] | None:
+    shared = _as_str_list(item.get("shared"))
+    differences = _as_str_list(item.get("differences"))
+    rare_common = _as_str_list(item.get("rare_common"))
+    worldviews = _as_str_list(item.get("worldviews"))
+    why_this_person = item.get("why_this_person")
+    if not isinstance(why_this_person, str) or not why_this_person.strip():
+        return None
+    if not (shared and differences and rare_common and worldviews):
+        return None
+    return {
+        "shared": shared,
+        "differences": differences,
+        "rare_common": rare_common,
+        "worldviews": worldviews,
+        "why_this_person": why_this_person.strip(),
+    }
+
+
+def _narrative_to_reasons(narrative: dict[str, Any] | None) -> list[str]:
+    if not narrative:
+        return []
+    reasons: list[str] = []
+    reasons.extend(_as_str_list(narrative.get("shared"))[:2])
+    reasons.extend(_as_str_list(narrative.get("rare_common"))[:1])
+    reasons.extend(_as_str_list(narrative.get("worldviews"))[:1])
+    if not reasons:
+        why = narrative.get("why_this_person")
+        if isinstance(why, str) and why.strip():
+            reasons.append(why.strip())
+    return reasons
 
 
 def _bytes_to_f32_list(buf: bytes) -> list[float]:
@@ -197,7 +250,7 @@ def match_user(
     # Cache check per pair (user_id, candidate_id) to avoid repeated reranks.
     by_id: dict[int, tuple[float, str]] = {cid: (sim, summary) for cid, sim, summary in candidates}
     missing: list[tuple[int, float, str]] = []
-    cached_results: list[tuple[int, float, float, list[str]]] = []
+    cached_results: list[tuple[int, float, float, list[str], dict[str, Any]]] = []
 
     user_hash = user_profile.source_hash or ""
     for cid, sim, summary in candidates:
@@ -207,15 +260,28 @@ def match_user(
         cache = session.get(MatchCache, (a, b))
         expected_a_hash = user_hash if a == user_id else other_hash
         expected_b_hash = other_hash if b == cid else user_hash
-        if cache is not None and cache.profile_hash_a == expected_a_hash and cache.profile_hash_b == expected_b_hash:
-            cached_results.append((cid, float(cache.score), float(cache.entropy), list(cache.reasons)))
+        if (
+            cache is not None
+            and cache.profile_hash_a == expected_a_hash
+            and cache.profile_hash_b == expected_b_hash
+            and cache.narrative is not None
+        ):
+            cached_results.append(
+                (cid, float(cache.score), float(cache.entropy), list(cache.reasons), dict(cache.narrative))
+            )
         else:
             missing.append((cid, sim, summary))
 
     if not missing and cached_results:
         cached_results.sort(key=lambda x: (-x[1], x[0]))
-        best_id, score, h, reasons = cached_results[0]
-        return {"user_id": best_id, "score": score, "entropy": h, "reasons": reasons}
+        best_id, score, h, reasons, narrative = cached_results[0]
+        return {
+            "user_id": best_id,
+            "score": score,
+            "entropy": h,
+            "reasons": reasons,
+            "narrative": narrative,
+        }
 
     ranked, usage = client.rerank(user_summary=user_profile.summary, candidates=candidates)
 
@@ -225,23 +291,26 @@ def match_user(
             endpoint="chat.completions",
             model=getattr(client, "chat_model", "unknown"),
             input_chars=len(user_profile.summary) + sum(len(c[2]) for c in candidates),
-            output_chars=sum(len(item.get("reasons", [])) for item in ranked),
+            output_chars=len(json.dumps(ranked, ensure_ascii=False)),
             usage=usage,
             meta={"user_id": user_id, "recall_k": len(candidates)},
         )
     )
 
     # Write cache for all ranked entries we can validate.
-    results: list[tuple[int, float, float, list[str]]] = []
+    results: list[tuple[int, float, float, list[str], dict[str, Any]]] = []
     for item in ranked:
         try:
             cid = int(item["user_id"])
             score = float(item["score"])
-            reasons = list(item.get("reasons") or [])
         except (KeyError, TypeError, ValueError):
             continue
         if cid not in by_id:
             continue
+        narrative = _normalize_narrative(item)
+        if narrative is None:
+            continue
+        reasons = _narrative_to_reasons(narrative)
         score = max(0.0, min(1.0, score))
         h = bernoulli_entropy(score)
 
@@ -257,9 +326,10 @@ def match_user(
             score=score,
             entropy=h,
             reasons=reasons,
+            narrative=narrative,
         )
         session.merge(entry)
-        results.append((cid, score, h, reasons))
+        results.append((cid, score, h, reasons, narrative))
 
     session.commit()
 
@@ -267,8 +337,21 @@ def match_user(
         # Fallback: best by cosine if LLM output invalid.
         cid, sim, _summary = candidates[0]
         score = max(0.0, min(1.0, (sim + 1.0) / 2.0))
-        return {"user_id": cid, "score": score, "entropy": bernoulli_entropy(score), "reasons": []}
+        return {
+            "user_id": cid,
+            "score": score,
+            "entropy": bernoulli_entropy(score),
+            "reasons": [],
+            "narrative": None,
+        }
 
     results.sort(key=lambda x: (-x[1], x[0]))
-    best_id, score, h, reasons = results[0]
-    return {"user_id": best_id, "score": score, "entropy": h, "reasons": reasons}
+    best_id, score, h, reasons, narrative = results[0]
+    return {
+        "user_id": best_id,
+        "score": score,
+        "entropy": h,
+        "reasons": reasons,
+        "narrative": narrative,
+    }
+

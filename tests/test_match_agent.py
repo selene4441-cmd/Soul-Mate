@@ -33,6 +33,16 @@ class FakeRerankClient:
                     "reasons": [f"你「{user_summary[:8]}」与TA「{summary[:8]}」有呼应。"],
                 }
             )
+        for item in ranked:
+            item.update(
+                {
+                    "shared": ["共同点：都更看重长期投入"],
+                    "differences": ["差异：表达与节奏不同"],
+                    "rare_common": ["罕见共同点：能把兴趣转为持续行动"],
+                    "worldviews": ["世界观差异：对“安全感”的来源理解不同"],
+                    "why_this_person": "因为你们的长期投入方式相似，且差异具有互补性。",
+                }
+            )
         return ranked, {"total_tokens": 1}
 
 

@@ -149,6 +149,7 @@ class MatchCache(Base):
     score: Mapped[float] = mapped_column(Float, nullable=False)
     entropy: Mapped[float] = mapped_column(Float, nullable=False)
     reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    narrative: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

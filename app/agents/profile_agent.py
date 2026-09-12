@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.costlog import CostEvent, append_cost_event, now_iso_utc
 from app.core.openai_compat import OpenAICompatClient
+from app.core.prompts import get_prompt
 from app.models import BehaviorEvent, Profile, User
 
 
@@ -34,17 +35,20 @@ class OpenAICompatProfileClient:
 
     def summarize_hidden_traits(self, *, text: str) -> tuple[str, dict]:
         client = OpenAICompatClient(base_url=self.base_url, api_key=self.api_key)
-        system = (
+        system_default = (
             "你是中文人格画像写作助手。"
             "只输出一段描述性段落，不要标题、不要列表、不要标签、不要引用。"
             "不包含姓名/联系方式/地址等个人信息。长度不超过200个中文字符。"
         )
-        user = (
+        system = get_prompt(key="profile_agent.system", default=system_default)
+        user_default = (
             "根据用户的行为事件统计与样本，归纳其“隐性特质”画像。"
             "要求：具体、自然、可观察的偏好与互动风格，避免空泛。"
             "\n\n"
-            f"{text}"
+            "{text}"
         )
+        user_template = get_prompt(key="profile_agent.user_template", default=user_default)
+        user = user_template.format(text=text)
         result = client.chat_completions(
             model=self.chat_model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],

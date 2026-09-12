@@ -37,3 +37,12 @@
 - `pytest -q`
 - `ruff check .`
 - `uvicorn app.main:app --reload`
+
+## Extensions (Skills & Plugins)
+
+- Skills:
+  - Prompt skill: add `*.toml` under `skills/`
+  - Document skill: put `*.SKILL.md` under repo root (e.g. `tongpin-all.SKILL.md`) or `skills/`
+  - Enable via `ACTIVE_SKILLS=example,other`
+- Plugins: add folders under `plugins/<plugin_id>/plugin.json` (see `plugins/example_echo/`).
+- API: `GET /extensions/skills`, `GET /extensions/plugins`, `POST /extensions/reload`, `POST /extensions/plugins/{plugin_id}/tools/{tool_name}`.

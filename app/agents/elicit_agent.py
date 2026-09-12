@@ -14,6 +14,7 @@ from app.core.belief import update as beta_update
 from app.core.config import settings
 from app.core.costlog import CostEvent, append_cost_event, now_iso_utc
 from app.core.openai_compat import OpenAICompatClient
+from app.core.prompts import get_prompt
 from app.models import Belief, Elicitation, ElicitationKind, Profile, Response, User
 
 
@@ -32,7 +33,7 @@ class OpenAICompatElicitClient:
 
     def generate_cards(self, *, user_profile: str, belief_p: float) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         client = OpenAICompatClient(base_url=self.base_url, api_key=self.api_key)
-        system = (
+        system_default = (
             "你是中文交互式引导卡（elicitations）写作助手。"
             "目标：用“措辞可错、可冒犯但不过界”的猜测，引导用户表态以降低不确定性。"
             "每张卡需要：question(一句话)、options(2-4个)、evidence_weight(1-3的整数，表示信号强度)。"
@@ -41,6 +42,7 @@ class OpenAICompatElicitClient:
             '{"cards":[{"question":<str>,"options":[<str>,...],"evidence_weight":<int>},...]}'
             "必须输出 3 张卡。"
         )
+        system = get_prompt(key="elicit_agent.system", default=system_default)
         user = json.dumps(
             {"user_profile": user_profile, "belief_p": round(float(belief_p), 4)},
             ensure_ascii=False,

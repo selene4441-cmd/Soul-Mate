@@ -60,6 +60,16 @@ class FakeMatchClient:
                     "reasons": [f"你「{user_summary[:6]}」与TA「{summary[:6]}」一致。"],
                 }
             )
+        for item in ranked:
+            item.update(
+                {
+                    "shared": ["共同点：都更偏向稳定与长期投入"],
+                    "differences": ["差异：沟通方式与节奏不同"],
+                    "rare_common": ["罕见共同点：在压力下也能保持自洽"],
+                    "worldviews": ["世界观差异：对“关系”的期待层次不同"],
+                    "why_this_person": "因为你们追求稳定的底层需求一致，且差异不会互相消耗。",
+                }
+            )
         return ranked, self.last_usage
 
 

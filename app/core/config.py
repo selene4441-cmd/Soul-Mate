@@ -17,5 +17,11 @@ class Settings(BaseSettings):
     openai_embedding_model: str | None = None
     openai_api_key: str | None = None
 
+    # Extensions (skills/plugins)
+    skills_dir: str = "skills"
+    plugins_dir: str = "plugins"
+    # Comma-separated skill ids; later skills override earlier ones.
+    active_skills: str = ""
+
 
 settings = Settings()
