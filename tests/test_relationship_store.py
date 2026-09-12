@@ -44,14 +44,14 @@ def test_relationship_posterior_replays_from_signals(session: Session) -> None:
             RelationshipSignal(
                 relationship_id=rel.id,
                 source="test",
-                kind="confirm",
+                kind="shared_topic",
                 content="互相主动联系",
                 weight=2.0,
             ),
             RelationshipSignal(
                 relationship_id=rel.id,
                 source="test",
-                kind="disconfirm",
+                kind="conflict",
                 content="沟通中断",
                 weight=1.0,
             ),
@@ -73,4 +73,3 @@ def test_relationship_posterior_replays_from_signals(session: Session) -> None:
     updated = update_relationship_from_signals(session, relationship_id=rel.id)
     assert updated.alpha == posterior.alpha
     assert updated.beta == posterior.beta
-

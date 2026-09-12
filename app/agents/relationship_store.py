@@ -12,12 +12,16 @@ PRIOR = BetaPosterior(alpha=1.0, beta=1.0)
 def _signal_to_evidence(signal: RelationshipSignal) -> Evidence:
     kind = (signal.kind or "").strip().lower()
     weight = float(signal.weight or 0.0)
-    weight = max(weight, 0.0)
-
-    if kind in {"confirm", "support", "positive", "pos", "+"}:
-        return Evidence(positive=weight, negative=0.0)
-    if kind in {"disconfirm", "oppose", "negative", "neg", "-"}:
-        return Evidence(positive=0.0, negative=weight)
+    if kind == "conflict":
+        return Evidence(positive=0.0, negative=abs(weight))
+    if kind in {"repair", "shared_topic"}:
+        return Evidence(positive=abs(weight), negative=0.0)
+    if kind in {"message_tone", "response_latency"}:
+        return (
+            Evidence(positive=weight, negative=0.0)
+            if weight >= 0.0
+            else Evidence(positive=0.0, negative=abs(weight))
+        )
     return Evidence(positive=0.0, negative=0.0)
 
 
@@ -54,4 +58,3 @@ def update_relationship_from_signals(
     relationship.beta = float(posterior.beta)
     session.commit()
     return relationship
-
