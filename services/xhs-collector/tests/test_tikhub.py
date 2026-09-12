@@ -1,4 +1,4 @@
-from app.tikhub import _find_error, extract_user_fields
+from app.tikhub import _find_error, _find_note_node, _parse_note, extract_user_fields
 
 
 def sample_payload():
@@ -72,3 +72,38 @@ def test_extract_notes_and_interaction_from_app_v2_shape():
     assert fields["following_count"] == 8
     assert fields["notes_count"] == 1
     assert fields["interaction_count"] == 13
+
+def test_parse_note_from_list_shape():
+    node = {
+        "id": "6a35dbe4000000001702e64d",
+        "title": "回忆？",
+        "desc": "或许，也没什么好留恋的了吧？",
+        "type": "normal",
+        "likes": 11,
+        "comments_count": 1,
+        "collected_count": 0,
+        "share_count": 0,
+        "ip_location": "Chongqing",
+        "create_time": 1781914596,
+        "images_list": [{"url": "https://example.com/a.jpg"}],
+        "hash_tag": [{"name": "这一刻的想法"}],
+    }
+    parsed = _parse_note(node)
+    assert parsed["note_id"] == "6a35dbe4000000001702e64d"
+    assert parsed["title"] == "回忆？"
+    assert parsed["likes"] == 11
+    assert parsed["images"] == ["https://example.com/a.jpg"]
+    assert parsed["tags"] == ["这一刻的想法"]
+
+
+def test_find_note_node_from_detail_shape():
+    payload = {
+        "data": {
+            "data": [
+                {"note_list": [{"id": "n1", "title": "标题", "desc": "正文"}]}
+            ]
+        }
+    }
+    node = _find_note_node(payload)
+    assert node["id"] == "n1"
+    assert node["desc"] == "正文"

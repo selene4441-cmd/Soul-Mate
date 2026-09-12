@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import io
 from collections import Counter
 
@@ -9,16 +10,18 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .dependencies import get_db
-from .models import XhsUser
+from .models import XhsNote, XhsUser
 from .normalize import ParsedIdentifier
 from .schemas import (
+    NoteList,
+    NoteOut,
     CollectRequest,
     CollectResponse,
     LeadList,
     LeadOut,
     ResolveRequest,
 )
-from .service import collect_identifiers, refresh_all, resolve_lead
+from .service import collect_identifiers, refresh_all, resolve_lead, sync_notes
 from .tikhub import TikhubError
 
 router = APIRouter()
@@ -125,3 +128,49 @@ def refresh_now(request: Request, db: Session = Depends(get_db)) -> dict[str, in
     client = request.app.state.tikhub
     interval = request.app.state.settings.request_interval_seconds
     return refresh_all(db, client, interval=interval)
+
+def _note_to_out(note: XhsNote) -> NoteOut:
+    return NoteOut(
+        id=note.id,
+        lead_id=note.lead_id,
+        note_id=note.note_id,
+        title=note.title,
+        desc=note.desc,
+        note_type=note.note_type,
+        likes=note.likes,
+        comments_count=note.comments_count,
+        collected_count=note.collected_count,
+        share_count=note.share_count,
+        ip_location=note.ip_location,
+        images=json.loads(note.images) if note.images else [],
+        tags=json.loads(note.tags) if note.tags else [],
+        note_url=note.note_url,
+        published_at=note.published_at,
+        last_synced_at=note.last_synced_at,
+        sync_error=note.sync_error,
+        created_at=note.created_at,
+    )
+
+
+@router.get("/api/v1/leads/{lead_id}/notes", response_model=NoteList)
+def list_notes(lead_id: int, db: Session = Depends(get_db)) -> NoteList:
+    lead = db.get(XhsUser, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    notes = db.execute(
+        select(XhsNote).where(XhsNote.lead_id == lead_id).order_by(XhsNote.id.desc())
+    ).scalars().all()
+    return NoteList(items=[_note_to_out(note) for note in notes], total=len(notes))
+
+
+@router.post("/api/v1/leads/{lead_id}/notes/sync")
+def sync_notes_endpoint(lead_id: int, request: Request, db: Session = Depends(get_db)) -> dict[str, int]:
+    lead = db.get(XhsUser, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    client = request.app.state.tikhub
+    interval = request.app.state.settings.request_interval_seconds
+    try:
+        return sync_notes(db, lead, client, interval=interval)
+    except TikhubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

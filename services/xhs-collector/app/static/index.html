@@ -29,6 +29,11 @@
     .needs_review { background:#fef3c7; color:var(--warn); }
     .failed { background:#fee2e2; color:var(--bad); }
     .empty { color:var(--muted); padding:24px; text-align:center; }
+    .note { border:1px solid var(--line); border-radius:8px; padding:12px; margin:10px 0; background:#fff; }
+    .note-head { font-size:14px; margin-bottom:6px; }
+    .note-desc { white-space:pre-wrap; color:var(--text); line-height:1.7; margin:6px 0; }
+    .note-tags { color:var(--brand); font-size:12px; margin:4px 0; }
+    .note img { max-width:160px; border-radius:8px; margin:4px; }
     footer { color:var(--muted); font-size:12px; text-align:center; padding:20px; line-height:1.7; }
   </style>
 </head>
@@ -56,6 +61,7 @@
     <section class="card">
       <div id="summary" class="summary"></div>
       <div id="tableWrap"></div>
+      <div id="notesPanel"></div>
     </section>
   </main>
   <footer>仅采集客户主动提供的公开资料；请确保已获得客户同意并遵守《个人信息保护法》与平台规则。</footer>
@@ -116,8 +122,13 @@
       if (!items.length) { wrap.innerHTML = '<div class="empty">暂无数据</div>'; return; }
       const rows = items.map(item => {
         const badge = `<span class="badge ${item.status}">${statusLabel(item.status)}</span>`;
-        const action = (item.status === 'needs_review' || item.status === 'failed')
-          ? `<button class="ghost" onclick="resolve(${item.id})">解析</button>` : '';
+        let action = '';
+        if (item.status === 'needs_review' || item.status === 'failed') {
+          action += `<button class="ghost" onclick="resolve(${item.id})">解析</button>`;
+        }
+        if (item.status === 'fetched') {
+          action += ` <button class="ghost" onclick="toggleNotes(${item.id})">笔记</button>`;
+        }
         return `<tr>
           <td>${item.id}</td>
           <td>${badge}</td>
@@ -159,6 +170,47 @@
       } catch (e) {
         alert('请求失败: ' + e.message);
       }
+    }
+
+    async function toggleNotes(id) {
+      const panel = document.getElementById('notesPanel');
+      if (panel.dataset.leadId === String(id)) {
+        panel.innerHTML = '';
+        delete panel.dataset.leadId;
+        return;
+      }
+      panel.dataset.leadId = String(id);
+      panel.innerHTML = '<div class="empty">正在同步笔记…</div>';
+      try {
+        await fetch(`/api/v1/leads/${id}/notes/sync`, { method: 'POST' });
+      } catch (e) {}
+      try {
+        const res = await fetch(`/api/v1/leads/${id}/notes`);
+        const data = await res.json();
+        renderNotes(data.items || []);
+      } catch (e) {
+        panel.innerHTML = '<div class="empty">笔记加载失败: ' + esc(e.message) + '</div>';
+      }
+    }
+
+    function renderNotes(notes) {
+      const panel = document.getElementById('notesPanel');
+      if (!notes.length) {
+        panel.innerHTML = '<div class="empty">该账号暂无笔记</div>';
+        return;
+      }
+      panel.innerHTML = '<h3 style="margin:12px 0 6px">笔记（' + notes.length + '）</h3>' + notes.map(n => {
+        const imgs = (n.images || []).map(u => '<img src="' + esc(u) + '" loading="lazy" alt="">').join('');
+        const tags = (n.tags || []).map(t => '#' + esc(t)).join(' ');
+        const link = n.note_url ? '<div><a href="' + esc(n.note_url) + '" target="_blank" rel="noreferrer">打开原笔记</a></div>' : '';
+        return '<div class="note">' +
+          '<div class="note-head"><b>' + esc(n.title || '') + '</b><span style="color:#6b7280"> · ' + esc(n.ip_location || '') + ' · 赞 ' + num(n.likes) + ' · 评 ' + num(n.comments_count) + ' · 藏 ' + num(n.collected_count) + '</span></div>' +
+          '<div class="note-desc">' + esc(n.desc || '') + '</div>' +
+          '<div class="note-tags">' + tags + '</div>' +
+          (imgs ? '<div>' + imgs + '</div>' : '') +
+          link +
+        '</div>';
+      }).join('');
     }
 
     function statusLabel(s) { return { fetched:'已入库', needs_review:'待解析', failed:'失败', skipped:'跳过' }[s] || s; }

@@ -57,3 +57,28 @@ class LeadList(BaseModel):
 class ResolveRequest(BaseModel):
     user_id: str | None = None
     share_text: str | None = None
+
+class NoteOut(BaseModel):
+    id: int
+    lead_id: int
+    note_id: str
+    title: str | None
+    desc: str | None
+    note_type: str | None
+    likes: int | None
+    comments_count: int | None
+    collected_count: int | None
+    share_count: int | None
+    ip_location: str | None
+    images: list[str] = []
+    tags: list[str] = []
+    note_url: str | None
+    published_at: datetime | None
+    last_synced_at: datetime | None
+    sync_error: str | None
+    created_at: datetime
+
+
+class NoteList(BaseModel):
+    items: list[NoteOut]
+    total: int

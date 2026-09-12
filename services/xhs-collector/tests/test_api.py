@@ -75,3 +75,18 @@ def test_refresh_endpoint(client):
     data = response.json()
     assert data["refreshed"] >= 1
     assert data["failed"] == 0
+
+def test_notes_sync_and_list_endpoints(client):
+    response = client.post("/api/v1/collect", json={"text": "61b46d790000000010008153"})
+    lead_id = response.json()["results"][0]["lead_id"]
+
+    response = client.post(f"/api/v1/leads/{lead_id}/notes/sync")
+    assert response.status_code == 200
+    assert response.json()["created"] == 1
+
+    response = client.get(f"/api/v1/leads/{lead_id}/notes")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["desc"] == "完整正文内容"
+    assert body["items"][0]["tags"] == ["tag1", "tag2"]

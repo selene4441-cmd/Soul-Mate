@@ -7,6 +7,7 @@
 - 粘贴微信群里的分享文案/主页链接/短链/24 位 hex user_id，自动识别并采集
 - 通过 TikHub 小红书 App V2 接口 `get_user_info` 拉取：昵称、头像、简介、性别、地区、粉丝、关注、笔记、互动数
 - 数据持久化到 SQLite（SQLAlchemy ORM），重复采集自动更新、不产生重复记录
+- 同步客户已发布笔记列表与笔记正文（标题、正文、配图、标签、点赞/评论/收藏/分享、笔记链接）
 - 纯“小红书号”（例如 `757954382`）无法被 TikHub 直接解析，会进入“待解析”，可补主页链接后一键解析
 - 提供 Web UI、REST API、CSV 导出
 
@@ -55,6 +56,8 @@ Copy-Item .env.example .env
 | GET | `/api/v1/leads` | 列表，支持 `status`、`q`、`limit`、`offset` |
 | GET | `/api/v1/leads/{id}` | 单条记录 |
 | POST | `/api/v1/leads/{id}/resolve` | 给“待解析”记录补 `user_id`/`share_text` |
+| GET | `/api/v1/leads/{id}/notes` | 查看该客户的笔记列表 |
+| POST | `/api/v1/leads/{id}/notes/sync` | 同步该客户的笔记列表与正文 |
 | GET | `/api/v1/leads/export.csv` | 导出 CSV |
 | POST | `/api/v1/refresh` | 立即执行一次增量刷新 |
 

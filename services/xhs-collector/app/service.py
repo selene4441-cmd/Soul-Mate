@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import XhsUser, utcnow
+from .models import XhsNote, XhsUser, utcnow
 from .normalize import ParsedIdentifier, parse_line
 from .schemas import CollectResult
 from .tikhub import TikhubClient, TikhubError
@@ -209,3 +211,83 @@ def refresh_all(db: Session, client: TikhubClient, interval: float = 0.3) -> dic
 
     db.commit()
     return {"total": total, "refreshed": refreshed, "failed": failed}
+
+def _get_note_by_id(db: Session, note_id: str) -> XhsNote | None:
+    return db.execute(select(XhsNote).where(XhsNote.note_id == note_id)).scalar_one_or_none()
+
+
+def _apply_note_fields(note: XhsNote, data: dict[str, Any]) -> None:
+    note.title = data.get("title")
+    note.desc = data.get("desc")
+    note.note_type = data.get("note_type")
+    note.likes = data.get("likes")
+    note.comments_count = data.get("comments_count")
+    note.collected_count = data.get("collected_count")
+    note.share_count = data.get("share_count")
+    note.ip_location = data.get("ip_location")
+    note.images = json.dumps(data.get("images") or [], ensure_ascii=False)
+    note.tags = json.dumps(data.get("tags") or [], ensure_ascii=False)
+    note.note_url = data.get("note_url")
+    if data.get("published_at"):
+        note.published_at = datetime.fromtimestamp(data["published_at"], tz=timezone.utc).replace(tzinfo=None)
+    if data.get("raw_json"):
+        note.raw_json = data.get("raw_json")
+    note.last_synced_at = utcnow()
+    note.sync_error = None
+
+
+def sync_notes(
+    db: Session,
+    lead: XhsUser,
+    client: TikhubClient,
+    interval: float = 0.3,
+    max_notes: int = 100,
+    force_details: bool = False,
+) -> dict[str, int]:
+    """Fetch a lead's posted notes and their full content, then upsert them."""
+    if not lead.user_id:
+        return {"found": 0, "created": 0, "updated": 0, "details": 0, "failed_details": 0}
+
+    result = client.fetch_posted_notes(lead.user_id, max_notes=max_notes)
+    notes_data = result["notes"]
+    created = 0
+    updated = 0
+    details = 0
+    failed_details = 0
+
+    for item in notes_data:
+        note_id = item.get("note_id")
+        if not note_id:
+            continue
+
+        note = _get_note_by_id(db, note_id)
+        is_new = note is None
+        if is_new:
+            note = XhsNote(lead_id=lead.id, note_id=note_id)
+            db.add(note)
+            created += 1
+        else:
+            updated += 1
+
+        _apply_note_fields(note, item)
+        db.flush()
+
+        if is_new or force_details or not note.desc:
+            try:
+                detail = client.fetch_note_detail(note_id, item.get("note_type") or "")
+                _apply_note_fields(note, detail)
+                details += 1
+            except TikhubError as exc:
+                note.sync_error = str(exc)
+                failed_details += 1
+            finally:
+                time.sleep(interval)
+
+    db.commit()
+    return {
+        "found": len(notes_data),
+        "created": created,
+        "updated": updated,
+        "details": details,
+        "failed_details": failed_details,
+    }

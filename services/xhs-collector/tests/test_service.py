@@ -1,11 +1,12 @@
+import json
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.models import XhsUser
-from app.service import collect_identifiers, refresh_all
+from app.models import XhsNote, XhsUser
+from app.service import collect_identifiers, refresh_all, sync_notes
 from app.tikhub import TikhubError
 from fakes import FakeTikhubClient
 
@@ -155,3 +156,27 @@ def test_refresh_all_records_error_and_keeps_old_data(db):
     assert summary == {"total": 1, "refreshed": 0, "failed": 1}
     assert lead.refresh_error == "账号不存在"
     assert lead.followers_count == 1200
+
+def test_sync_notes_creates_notes_and_fetches_full_content(db):
+    lead = XhsUser(
+        source="61b46d790000000010008153",
+        identifier_type="user_id",
+        user_id="61b46d790000000010008153",
+        status="fetched",
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+
+    client = FakeTikhubClient()
+    summary = sync_notes(db, lead, client, interval=0)
+
+    assert summary["found"] == 1
+    assert summary["created"] == 1
+    assert summary["details"] == 1
+
+    note = db.query(XhsNote).one()
+    assert note.note_id == "note-1"
+    assert note.desc == "完整正文内容"
+    assert json.loads(note.tags) == ["tag1", "tag2"]
+    assert json.loads(note.images) == ["https://example.com/note.jpg"]
