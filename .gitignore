@@ -20,3 +20,9 @@ data/
 
 logs/*.jsonl
 reports/*.png
+
+# Next.js (web/)
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import FeedbackProvider, Orchestrator

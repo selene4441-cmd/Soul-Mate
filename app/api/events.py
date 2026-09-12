@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
@@ -11,11 +12,12 @@ from app.core.db import get_session
 from app.core.ratelimit import RateLimit, RateLimiter
 from app.models import BehaviorEvent, BehaviorEventType, User
 
-
 router = APIRouter()
 
 POST_EVENTS_LIMIT = RateLimit(limit=30, window_s=60)
 GET_EVENTS_LIMIT = RateLimit(limit=120, window_s=60)
+
+SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def get_rate_limiter(request: Request) -> RateLimiter:
@@ -31,8 +33,11 @@ def _client_key(request: Request) -> str:
     return host
 
 
+RateLimiterDep = Annotated[RateLimiter, Depends(get_rate_limiter)]
+
+
 def enforce_rate_limit(rule: RateLimit):
-    def _dep(request: Request, limiter: RateLimiter = Depends(get_rate_limiter)) -> None:
+    def _dep(request: Request, limiter: RateLimiterDep) -> None:
         key = f"{request.url.path}:{_client_key(request)}"
         if not limiter.allow(key=key, rule=rule):
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="rate_limited")
@@ -72,7 +77,7 @@ class UserEventsOut(BaseModel):
     response_model=EventsOut,
     dependencies=[Depends(enforce_rate_limit(POST_EVENTS_LIMIT))],
 )
-def post_events(payload: EventsIn, session: Session = Depends(get_session)) -> EventsOut:
+def post_events(payload: EventsIn, session: SessionDep) -> EventsOut:
     user_ids = sorted({e.user_id for e in payload.events})
     users = session.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
     found = {u.id: u for u in users}
@@ -105,9 +110,9 @@ def post_events(payload: EventsIn, session: Session = Depends(get_session)) -> E
     dependencies=[Depends(enforce_rate_limit(GET_EVENTS_LIMIT))],
 )
 def get_user_events(
+    session: SessionDep,
     user_id: int = Path(..., ge=1),
     limit: int = Query(100, ge=1, le=500),
-    session: Session = Depends(get_session),
 ) -> UserEventsOut:
     user = session.get(User, user_id)
     if user is None:

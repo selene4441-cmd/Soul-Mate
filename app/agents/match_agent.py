@@ -35,6 +35,9 @@ class OpenAICompatRerankClient:
     def rerank(
         self, *, user_summary: str, candidates: list[tuple[int, float, str]]
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        # 候选过多会让 JSON 超出 token 上限被截断：只把余弦相似度最高的前 20 个交给 LLM 重排
+        candidates = list(candidates)[:20]
+
         client = OpenAICompatClient(base_url=self.base_url, api_key=self.api_key)
         system = (
             "你是中文匹配推荐助手。任务：对候选人进行重排，并给出每位候选人的匹配分与理由。"
@@ -60,7 +63,7 @@ class OpenAICompatRerankClient:
             model=self.chat_model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user_msg}],
             temperature=0.2,
-            max_tokens=400,
+            max_tokens=4000,
         )
 
         usage = {
@@ -68,9 +71,39 @@ class OpenAICompatRerankClient:
             "completion_tokens": result.usage.completion_tokens,
             "total_tokens": result.usage.total_tokens,
         }
-        data = json.loads(result.content)
-        ranked = list(data["ranked"])
+        data = _parse_ranked(result.content)
+        ranked = list(data)
         return ranked, usage
+
+
+def _parse_ranked(text: str) -> list[dict[str, Any]]:
+    """容错解析 rerank 输出：去 markdown 围栏；被截断时抢救已完整的对象。"""
+    import re
+
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z]*\s*", "", raw)
+        raw = re.sub(r"\s*```\s*$", "", raw)
+    parsed: list[dict[str, Any]] | None = None
+    try:
+        data = json.loads(raw)
+        ranked = data["ranked"]
+        if isinstance(ranked, list):
+            parsed = list(ranked)
+    except (json.JSONDecodeError, KeyError, TypeError):
+        parsed = None
+    if parsed is not None:
+        return parsed
+    salvaged: list[dict[str, Any]] = []
+    pattern = re.compile(r'\{\s*"user_id"\s*:\s*\d+.*?"reasons"\s*:\s*\[.*?\]\s*\}', re.DOTALL)
+    for m in pattern.finditer(raw):
+        try:
+            salvaged.append(json.loads(m.group(0)))
+        except json.JSONDecodeError:
+            continue
+    if salvaged:
+        return salvaged
+    raise ValueError(f"rerank 输出无法解析为 JSON（长度 {len(text)}）：{text[:200]}")
 
 
 def build_rerank_client_from_env() -> OpenAICompatRerankClient:
@@ -205,7 +238,7 @@ def match_user(
             cid = int(item["user_id"])
             score = float(item["score"])
             reasons = list(item.get("reasons") or [])
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             continue
         if cid not in by_id:
             continue

@@ -8,10 +8,16 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
-from app.agents.elicit_agent import GuessCard, apply_guess_response, generate_guess_cards
+from app.agents.elicit_agent import (
+    GuessCard,
+    apply_guess_response,
+    generate_guess_cards,
+)
 from app.agents.match_agent import RerankClient, match_user
-from app.agents.profile_agent import LLMClient as ProfileLLMClient, update_user_profile_from_events
-from app.core.belief import BetaPosterior, entropy as bernoulli_entropy
+from app.agents.profile_agent import LLMClient as ProfileLLMClient
+from app.agents.profile_agent import update_user_profile_from_events
+from app.core.belief import BetaPosterior
+from app.core.belief import entropy as bernoulli_entropy
 from app.models import Profile
 
 
@@ -118,7 +124,7 @@ def explain_match(*, session: Session, user_id: int, match: dict[str, Any]) -> s
     return (
         f"匹配对象：{other_id}\n"
         f"分数：{match.get('score')}\n"
-        f"不确定性(熵)：{match.get('entropy')}\n"
+        f"匹配不确定性：{match.get('entropy')}\n"
         f"你的画像：{p1.summary}\n"
         f"TA的画像：{p2.summary}\n"
         f"理由：\n{reasons_txt}"
@@ -225,4 +231,3 @@ class Orchestrator:
         }
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-

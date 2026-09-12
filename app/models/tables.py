@@ -31,16 +31,16 @@ class User(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    behavior_events: Mapped[list["BehaviorEvent"]] = relationship(
+    behavior_events: Mapped[list[BehaviorEvent]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    responses: Mapped[list["Response"]] = relationship(
+    responses: Mapped[list[Response]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    profile: Mapped["Profile | None"] = relationship(
+    profile: Mapped[Profile | None] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
-    beliefs: Mapped[list["Belief"]] = relationship(
+    beliefs: Mapped[list[Belief]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -75,7 +75,7 @@ class Elicitation(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    responses: Mapped[list["Response"]] = relationship(
+    responses: Mapped[list[Response]] = relationship(
         back_populates="elicitation", cascade="all, delete-orphan"
     )
 

@@ -8,7 +8,9 @@ from typing import Any, Protocol
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from app.core.belief import BetaPosterior, Evidence, entropy as bernoulli_entropy, update as beta_update
+from app.core.belief import BetaPosterior, Evidence
+from app.core.belief import entropy as bernoulli_entropy
+from app.core.belief import update as beta_update
 from app.core.config import settings
 from app.core.costlog import CostEvent, append_cost_event, now_iso_utc
 from app.core.openai_compat import OpenAICompatClient
@@ -101,17 +103,29 @@ def _fallback_cards() -> list[dict[str, Any]]:
     return [
         {
             "question": "我猜：你更在意“被认真对待”，而不是单纯的浪漫。",
-            "options": ["同意", "不同意", "不确定"],
+            "options": [
+                {"text": "同意", "polarity": "confirm"},
+                {"text": "不同意", "polarity": "disconfirm"},
+                {"text": "不确定", "polarity": "uncertain"},
+            ],
             "evidence_weight": 1,
         },
         {
             "question": "我可能错了：你会把暧昧拖久，是因为怕承担不匹配的后果。",
-            "options": ["同意", "不同意", "不确定"],
+            "options": [
+                {"text": "同意", "polarity": "confirm"},
+                {"text": "不同意", "polarity": "disconfirm"},
+                {"text": "不确定", "polarity": "uncertain"},
+            ],
             "evidence_weight": 2,
         },
         {
             "question": "大胆猜测：你宁愿错过，也不想降低标准去“将就”。",
-            "options": ["同意", "不同意", "不确定"],
+            "options": [
+                {"text": "同意", "polarity": "confirm"},
+                {"text": "不同意", "polarity": "disconfirm"},
+                {"text": "不确定", "polarity": "uncertain"},
+            ],
             "evidence_weight": 3,
         },
     ]
@@ -141,7 +155,7 @@ def generate_guess_cards(
     usage: dict[str, Any] | None = None
     try:
         cards, usage = client.generate_cards(user_profile=profile.summary, belief_p=posterior.mean)
-    except Exception:
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError, RuntimeError):
         cards = _fallback_cards()
 
     # Normalize to exactly 3 cards.
@@ -152,23 +166,25 @@ def generate_guess_cards(
     out: list[GuessCard] = []
     for card in cards:
         question = str(card.get("question") or "").strip()
-        options = list(card.get("options") or [])
-        options = [str(o).strip() for o in options if str(o).strip()]
+        options_raw = card.get("options")
+        options_struct = _normalize_options(options_raw)
+        options_text = [o["text"] for o in options_struct]
         if not question:
             continue
-        if len(options) < 2:
-            options = ["同意", "不同意", "不确定"]
+        if len(options_struct) < 2:
+            options_struct = _normalize_options(_fallback_cards()[0]["options"])
+            options_text = [o["text"] for o in options_struct]
 
         weight_raw = card.get("evidence_weight", 1)
         try:
             weight = float(int(weight_raw))
-        except Exception:
+        except (TypeError, ValueError):
             weight = 1.0
         weight = max(1.0, min(3.0, weight))
 
         elicitation = Elicitation(
             question=question,
-            options=options,
+            options=options_struct,
             kind=ElicitationKind.SINGLE_CHOICE,
         )
         session.add(elicitation)
@@ -179,7 +195,7 @@ def generate_guess_cards(
             GuessCard(
                 elicitation_id=int(elicitation.id),
                 question=question,
-                options=options,
+                options=options_text,
                 kind=ElicitationKind.SINGLE_CHOICE.value,
                 expected_information_gain=float(ig),
                 evidence_weight=float(weight),
@@ -204,21 +220,111 @@ def generate_guess_cards(
     return out
 
 
-def _choice_to_evidence(choice: str, *, weight: float = 1.0) -> Evidence:
-    normalized = choice.strip().lower()
-    # Allow a bit of flexibility for future option variants.
-    positives = {"同意", "是", "更像a", "a", "agree", "yes"}
-    negatives = {"不同意", "否", "更像b", "b", "disagree", "no"}
-    unsure = {"不确定", "都不是", "不知道", "unsure", "unknown", "skip"}
-
-    if normalized in positives:
+def _polarity_to_evidence(polarity: str, *, weight: float) -> Evidence:
+    p = polarity.strip().lower()
+    if p == "confirm":
         return Evidence(positive=weight, negative=0.0)
-    if normalized in negatives:
+    if p == "disconfirm":
         return Evidence(positive=0.0, negative=weight)
-    if normalized in unsure:
-        return Evidence(positive=0.0, negative=0.0)
-    # Default: treat as uncertain to avoid over-updating on unknown labels.
     return Evidence(positive=0.0, negative=0.0)
+
+
+def _choice_to_evidence_fallback(choice: str, *, weight: float = 1.0) -> Evidence:
+    """
+    Backward-compatibility fallback when elicitation.options does not carry polarity metadata.
+    Uses keyword prefix matching (not exact equality) to support long option sentences.
+    """
+    raw = choice.strip()
+    lowered = raw.lower()
+
+    positive_prefixes = ("同意", "是", "赞同", "确认", "agree", "yes")
+    negative_prefixes = ("不同意", "不是", "否", "反对", "disagree", "no")
+    unsure_prefixes = ("不确定", "跳过", "不知道", "都不是", "unsure", "unknown", "skip")
+
+    if raw.startswith(positive_prefixes) or lowered.startswith(positive_prefixes):
+        return Evidence(positive=weight, negative=0.0)
+    if raw.startswith(negative_prefixes) or lowered.startswith(negative_prefixes):
+        return Evidence(positive=0.0, negative=weight)
+    if raw.startswith(unsure_prefixes) or lowered.startswith(unsure_prefixes):
+        return Evidence(positive=0.0, negative=0.0)
+    return Evidence(positive=0.0, negative=0.0)
+
+
+def _normalize_options(options_raw: Any) -> list[dict[str, str]]:
+    """
+    Returns list of {text, polarity} where polarity in {confirm, disconfirm, uncertain}.
+    """
+    allowed = {"confirm", "disconfirm", "uncertain"}
+
+    def clean_text(x: Any) -> str:
+        return str(x or "").strip()
+
+    if isinstance(options_raw, list) and options_raw and all(isinstance(o, dict) for o in options_raw):
+        out: list[dict[str, str]] = []
+        for o in options_raw:
+            text = clean_text(o.get("text"))
+            pol = clean_text(o.get("polarity")).lower()
+            if not text:
+                continue
+            if pol not in allowed:
+                pol = "uncertain"
+            out.append({"text": text, "polarity": pol})
+        return out
+
+    # Legacy: list[str]
+    if isinstance(options_raw, list):
+        texts = [clean_text(o) for o in options_raw if clean_text(o)]
+        out: list[dict[str, str]] = []
+        for t in texts:
+            pol = "uncertain"
+            if t.startswith(("同意", "是")):
+                pol = "confirm"
+            elif t.startswith(("不同意", "不是", "否")):
+                pol = "disconfirm"
+            elif t.startswith(("不确定", "跳过")):
+                pol = "uncertain"
+            out.append({"text": t, "polarity": pol})
+
+        # If we failed to infer, provide a sane default mapping for the common 2/3-option cases.
+        if out and all(o["polarity"] == "uncertain" for o in out):
+            if len(out) == 2:
+                out[0]["polarity"] = "confirm"
+                out[1]["polarity"] = "disconfirm"
+            elif len(out) >= 3:
+                out[0]["polarity"] = "confirm"
+                out[1]["polarity"] = "disconfirm"
+                out[2]["polarity"] = "uncertain"
+        return out
+
+    # Legacy: dict options -> treat keys as options
+    if isinstance(options_raw, dict):
+        keys = [clean_text(k) for k in options_raw if clean_text(k)]
+        return _normalize_options(keys)
+
+    return []
+
+
+def _resolve_choice_polarity(elicitation_options: Any, choice: str) -> str | None:
+    normalized_choice = (choice or "").strip()
+    if not normalized_choice:
+        return None
+
+    options = _normalize_options(elicitation_options)
+    if not options:
+        return None
+
+    # 1) Exact match
+    for o in options:
+        if o["text"] == normalized_choice:
+            return o["polarity"]
+
+    # 2) Prefix match (supports long sentences starting with a short canonical prefix)
+    for o in options:
+        t = o["text"]
+        if normalized_choice.startswith(t) or t.startswith(normalized_choice):
+            return o["polarity"]
+
+    return None
 
 
 def apply_guess_response(
@@ -246,7 +352,11 @@ def apply_guess_response(
     if elicitation is None:
         raise ValueError("elicitation not found")
 
-    ev = _choice_to_evidence(choice, weight=evidence_weight)
+    polarity = _resolve_choice_polarity(elicitation.options, choice)
+    if polarity is not None:
+        ev = _polarity_to_evidence(polarity, weight=evidence_weight)
+    else:
+        ev = _choice_to_evidence_fallback(choice, weight=evidence_weight)
     new_posterior = beta_update(posterior, ev)
 
     session.add(
@@ -284,4 +394,3 @@ def apply_guess_response(
 
     session.commit()
     return new_posterior
-

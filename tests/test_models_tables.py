@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sqlalchemy as sa
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 

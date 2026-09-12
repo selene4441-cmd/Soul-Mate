@@ -4,7 +4,13 @@ import math
 
 import pytest
 
-from app.core.belief import BetaPosterior, Evidence, confidence_interval, entropy, update
+from app.core.belief import (
+    BetaPosterior,
+    Evidence,
+    confidence_interval,
+    entropy,
+    update,
+)
 
 
 def test_entropy_p0_is_zero() -> None:

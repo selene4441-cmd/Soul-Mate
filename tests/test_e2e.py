@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import struct
 import zlib
 from array import array
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
-import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import FeedbackProvider, Orchestrator
 from app.agents.profile_agent import update_user_profile_from_events
-from app.core.belief import BetaPosterior, entropy as bernoulli_entropy
+from app.core.belief import BetaPosterior
+from app.core.belief import entropy as bernoulli_entropy
 from app.models import Profile, User
 
 
@@ -77,15 +77,15 @@ def _write_entropy_png(path: Path, entropies: list[float]) -> None:
     def map_x(i: int) -> int:
         if len(xs) == 1:
             return margin
-        return margin + int(round((width - 2 * margin) * (i / (len(xs) - 1))))
+        return margin + round((width - 2 * margin) * (i / (len(xs) - 1)))
 
     def map_y(v: float) -> int:
         frac = (v - y_min) / (y_max - y_min)
-        y = (height - margin) - int(round((height - 2 * margin) * frac))
+        y = (height - margin) - round((height - 2 * margin) * frac)
         return y
 
     points = [(map_x(i), map_y(v)) for i, v in enumerate(entropies)]
-    for (x0, y0), (x1, y1) in zip(points, points[1:], strict=False):
+    for (x0, y0), (x1, y1) in pairwise(points):
         draw_line(x0, y0, x1, y1, line)
 
     # PNG encoding
@@ -250,7 +250,7 @@ def test_e2e_closed_loop(client: TestClient, api_engine, scratch_dir: Path) -> N
             matches.append(int(result.match["user_id"]))
 
     # 断言熵下降曲线单调（非增）。
-    for a, b in zip(entropies, entropies[1:], strict=False):
+    for a, b in pairwise(entropies):
         assert b <= a + 1e-15
 
     # 匹配结果稳定：3 轮得到相同对象。

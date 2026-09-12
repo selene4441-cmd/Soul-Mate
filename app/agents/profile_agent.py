@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from dataclasses import dataclass
 from array import array
+from dataclasses import dataclass
 from statistics import mean, median
 from typing import Protocol
 
@@ -129,7 +129,7 @@ def _render_behavior_snapshot(events: list[BehaviorEvent]) -> str:
             lo = int(pos)
             hi = min(lo + 1, len(sorted_ms) - 1)
             frac = pos - lo
-            return int(round(sorted_ms[lo] * (1 - frac) + sorted_ms[hi] * frac))
+            return round(sorted_ms[lo] * (1 - frac) + sorted_ms[hi] * frac)
 
         dwell_stats = f"均值{int(mean(sorted_ms))}ms，中位{int(median(sorted_ms))}ms，P90 {pctl(0.9)}ms"
 

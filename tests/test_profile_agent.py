@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from app.agents.profile_agent import update_user_profile_from_events
@@ -19,8 +18,11 @@ class FakeClient:
     def summarize_hidden_traits(self, *, text: str) -> tuple[str, dict]:
         self.summarize_calls += 1
         # Keep it under 200 chars and paragraph-like.
-        return ("他更偏好稳定、节奏清晰的互动，停留更久时代表投入；对高频目标更有兴趣，"
-                "遇到不确定会先观察再表达，信任建立后会更主动。", {"total_tokens": 10})
+        summary = (
+            "他更偏好稳定、节奏清晰的互动，停留更久时代表投入；对高频目标更有兴趣，"
+            "遇到不确定会先观察再表达，信任建立后会更主动。"
+        )
+        return summary, {"total_tokens": 10}
 
     def embed(self, *, text: str) -> tuple[list[float], dict]:
         self.embed_calls += 1
@@ -98,4 +100,3 @@ def test_profile_agent_requires_consent(session: Session) -> None:
         pass
     else:
         raise AssertionError("expected PermissionError")
-
