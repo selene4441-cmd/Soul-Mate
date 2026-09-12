@@ -1,0 +1,1253 @@
+openapi: 3.1.0
+info:
+  title: SoulMate Agent API
+  version: "1.0.0"
+  summary: 信息熵驱动的同频匹配 Agent —— 前端对接契约
+  description: |
+    # SoulMate Agent API（v1）
+
+    基准代码：`soulmate` @ commit `e2d2401`。本文件是**前端对接的唯一契约来源**，
+    与 `API-CONTRACT.md`（人读版）配套。逐条字段均取自后端真实 `app.openapi()` 导出，
+    并未臆造；其中 `x-contract-status: planned` 的接口是**已实现但尚未迁移到 `/api/v1`** 的能力
+    （当前挂在旧根路径，见每个接口的 `x-current-path`）。
+
+    ## 接入三条铁律
+
+    1. **只用 `/api/v1/*`**。旧根路径（`/users/{id}/*` 等）无鉴权，仅作迁移期临时兜底。
+    2. **必须走同源代理**。后端没有 CORS 中间件，且 session cookie 是 `SameSite=Lax`，
+       浏览器直连后端会预检失败 / cookie 不生效。
+    3. **写操作必须带 `X-CSRF-Token`**，值等于 JS 可读 cookie `tongpin_csrf`
+       （`auth/register`、`auth/login` 豁免）。
+
+    ## 认证
+
+    - `tongpin_session`：HttpOnly，14 天，浏览器自动携带
+    - `tongpin_csrf`：**JS 可读**，双提交校验用
+    - 所有 id 都是**字符串**（例外：`/recommendations/{candidate_id}` 是数字路径参数）
+    - 所有时间是 UTC ISO8601，形如 `2026-09-12T10:00:00Z`
+
+    ## 错误
+
+    `/api/v1/*` 全局统一错误体 `ErrorEnvelope`，并在响应头返回 `X-Trace-Id`。
+    前端上报问题时请带 `trace_id`。成功响应**不带** envelope。
+
+    ## 实时通道
+
+    WebSocket（OpenAPI 无法描述，见 `x-websocket-endpoints`）：
+    `WS /api/v1/ws/matches/{match_id}`，握手用 cookie 认证，
+    关闭码 `4401`（未登录）/ `4403`（不属于该 match）。
+servers:
+  - url: http://127.0.0.1:8000
+    description: 本地开发（前端请通过同源代理访问）
+  - url: https://api.example.com
+    description: 线上占位，路径不变
+tags:
+  - name: auth
+    description: 注册 / 登录 / 登出 / 会话探测
+  - name: consent
+    description: 授权（前端每次动作前先查，不要靠本地缓存猜）
+  - name: questionnaire
+    description: 问卷与作答（信息熵引擎的输入端）
+  - name: claims
+    description: 用户自述事实（Your Story / How I See You 的数据源）
+  - name: space
+    description: 界面状态机（前端路由的唯一依据）
+  - name: recommendations
+    description: 推荐与理由（**响应中刻意不含任何分数/百分比/排名**）
+  - name: invitation
+    description: 邀请（双向即成 match）
+  - name: matches
+    description: 匹配与消息
+  - name: agent-planned
+    description: 待迁移能力：猜测卡 / 贝叶斯更新 / 信念 / 自述 / 匹配叙事
+  - name: telemetry
+    description: 行为埋点
+  - name: system
+    description: 运维
+x-product-rules:
+  forbidden-response-fields: [score, percent, rank, label, level, match_score, similarity]
+  forbidden-ui-words: [匹配度, 契合度, 相似度, 人格报告, MBTI, 用户标签, 用户画像, 分数, 排名, 等级]
+  required-ui-words: [Your Story, How I See You, 共同点, 差异, 罕见共同点, 世界观差异]
+  entropy-usage: >-
+    entropy（0 ~ 0.6931，伯努利熵）只表示"我们有多不确定"，可用于"还在了解你"这类
+    不确定性可视化；严禁换算成百分比、严禁与"匹配好坏"挂钩。它与匹配不确定性是
+    两个不同的量（后端字段分别为 belief_entropy 与 match_uncertainty）。
+x-websocket-endpoints:
+  - path: /api/v1/ws/matches/{match_id}
+    auth: cookie tongpin_session（浏览器 WS API 不支持自定义请求头）
+    close-codes:
+      4401: 未登录或 session 失效
+      4403: match 不存在或你不属于该 match
+    server-messages:
+      - type: messages.snapshot
+        data: []
+        note: 快照占位，data 恒为空数组；收到后清空本地消息列表
+      - type: message.created
+        data: { id: string, body: string }
+        note: >-
+          历史消息逐条回放 + 新消息广播。注意事件体**不含** sender_id / created_at，
+          需要完整字段请调 GET /api/v1/matches/{match_id}/messages。
+security:
+  - sessionCookie: []
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: 健康检查
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, examples: [ok] }
+
+  # ---------------------------------------------------------------- auth
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      summary: 注册并自动登录
+      description: 免 CSRF 校验。成功后下发 `tongpin_session`（HttpOnly）与 `tongpin_csrf`（JS 可读）。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterIn" }
+            examples:
+              default:
+                value:
+                  display_name: 林屿
+                  email: linyu@example.com
+                  password: password123
+                  birth_year: 1994
+                  region: 上海
+      responses:
+        "200":
+          description: 注册成功，已建立会话
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthOut" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginIn" }
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: 登出（服务端撤销 session）
+      description: 必须调用；只清前端状态不算登出。需要 CSRF 头。
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      responses:
+        "200":
+          description: 已登出，cookie 已清除
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, examples: [ok] }
+        "403": { $ref: "#/components/responses/CsrfInvalid" }
+
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户（前端启动时的会话探测）
+      description: 401 即未登录。不需要额外接口判断登录态。
+      responses:
+        "200":
+          description: 当前用户
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ---------------------------------------------------------------- consent
+  /api/v1/consents:
+    get:
+      tags: [consent]
+      summary: 我的授权列表（未撤销）
+      responses:
+        "200":
+          description: 授权列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConsentOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [consent]
+      summary: 授权某个用途
+      description: |
+        必须由用户在界面上显式同意后调用（说明用途 → 点击同意 → 调本接口）。
+        - `matching:v1`：解锁问卷提交、claims、推荐
+        - `conversation:v1`：解锁邀请与消息（**双方**都要有）
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsentIn" }
+            examples:
+              default:
+                value: { scope: "matching:v1", purpose: "用于关系匹配" }
+      responses:
+        "200":
+          description: 授权成功
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/CsrfInvalid" }
+
+  # ---------------------------------------------------------------- questionnaire
+  /api/v1/questionnaire:
+    get:
+      tags: [questionnaire]
+      summary: 取题库（含选项与极性）
+      description: |
+        无需认证。`options[].polarity` 是信息熵引擎的输入极性
+        （`confirm` / `disconfirm` / `uncertain`）——**前端禁止**据此改变视觉权重、
+        排序或任何暗示性标注；它只用于后端贝叶斯更新与"为什么这么问"的文案。
+        提交时用 `options[].value`，不是 `label`。
+      security: []
+      responses:
+        "200":
+          description: 题库
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuestionnaireOut" }
+
+  /api/v1/questionnaire/submissions:
+    post:
+      tags: [questionnaire]
+      summary: 提交问卷 → 生成 Claim（并写入熵引擎作答记录）
+      description: |
+        需 `matching:v1` 授权 + CSRF 头。
+        一次提交产生：① `Evidence`（原始作答）② 每维度一条 `Claim`
+        ③ 熵引擎的 `Elicitation` + `Response`（幂等：同维度重复提交复用同一条
+        elicitation，不会重复累加后验）。
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuestionnaireSubmissionIn" }
+            examples:
+              default:
+                value:
+                  version: relationship-signals-v0.1
+                  answers: { life_weekend: stay_home, comm_reply_frequency: daily }
+      responses:
+        "200":
+          description: 生成的 Claim 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClaimOut" }
+        "400":
+          description: |
+            `QUESTIONNAIRE_VERSION_MISMATCH`（version 不一致）/
+            `QUESTIONNAIRE_INCOMPLETE`（`details.missing` 列出缺失维度）/
+            `UNKNOWN_QUESTION` / `INVALID_ANSWER`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # ---------------------------------------------------------------- claims
+  /api/v1/claims:
+    get:
+      tags: [claims]
+      summary: 我的 Claim 列表（Your Story / How I See You 素材）
+      description: 需 `matching:v1` 授权。按 `observed_at` 倒序，默认 30 天后过期。
+      responses:
+        "200":
+          description: Claim 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClaimOut" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # ---------------------------------------------------------------- space
+  /api/v1/space/state:
+    get:
+      tags: [space]
+      summary: 界面状态机（前端路由的唯一依据）
+      description: |
+        判据顺序（后端实现）：
+        1. 存在 `connected` 的 match → `CHAT`
+        2. `can_match = 已授权 matching:v1 && 必答题全答`
+        3. `can_match` 且已存在推荐会话 → `MATCHING`
+        4. `can_match` 且未生成过 → `SELF_PROFILE_READY`
+        5. 否则 → `EXPLORING`
+
+        ⚠️ `question.options` **后端目前恒返回空数组**，取选项请用
+        `GET /api/v1/questionnaire` 的完整题库按 `dimension` 匹配。
+        `profile` 恒为 `null`，不要依赖。
+      responses:
+        "200":
+          description: 当前状态
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpaceStateOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ---------------------------------------------------------------- recommendations
+  /api/v1/recommendations:
+    post:
+      tags: [recommendations]
+      summary: 生成推荐（含理由与证据）
+      description: |
+        需 `matching:v1` 授权 + CSRF 头。无请求体。
+
+        **响应刻意不含** `score` / `percent` / `rank` / `level` 等字段。
+        返回顺序即排序，前端**不得重排、不得二次打分**。
+        `unknowns`（还不确定的部分）必须渲染，它是产品诚实感的来源。
+        `evidence_ids` 不要渲染给用户，也不要拿条数当"可信度"。
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      responses:
+        "200":
+          description: 推荐结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecommendationsOut" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/v1/recommendations/{candidate_id}:
+    get:
+      tags: [recommendations]
+      summary: 取某候选人的推荐理由
+      description: ⚠️ 这里的 `candidate_id` 是**数字**路径参数（与其它接口的字符串 id 不同）。
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: 该候选人的推荐（`items` 只含一条）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecommendationsOut" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- invitation
+  /api/v1/invitations:
+    post:
+      tags: [invitation]
+      summary: 发出邀请（双向即成 match）
+      description: |
+        需 `conversation:v1` 授权（**双方**）+ CSRF 头。
+        返回 `status: "pending"` 表示已发出待回应；对方回邀后自动变 `connected`。
+        **只有 `connected` 才能发消息**（否则 403 `MATCH_NOT_CONNECTED`）。
+        `candidate_id` 在这里是**字符串**（与 `/recommendations/{candidate_id}` 的数字不同）。
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationIn" }
+            examples:
+              default:
+                value: { candidate_id: "2", message: "想从一个具体场景开始了解。" }
+      responses:
+        "200":
+          description: 邀请已发出 / 已成为 match
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationOut" }
+        "400":
+          description: "`INVALID_CANDIDATE`（邀请自己或 id 非法）"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`INVITATION_CONFLICT`（并发冲突，重试一次即可）"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  # ---------------------------------------------------------------- matches
+  /api/v1/matches:
+    get:
+      tags: [matches]
+      summary: 我的匹配列表
+      description: 排序为 `connected_at` 倒序优先，其次 `created_at` 倒序。
+      responses:
+        "200":
+          description: 匹配列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MatchOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/matches/{match_id}/messages:
+    get:
+      tags: [matches]
+      summary: 拉取消息历史
+      description: 需 `conversation:v1`（双方）。按 `created_at` 升序。`conversation_id` 与 `match_id` 同值。
+      parameters:
+        - $ref: "#/components/parameters/MatchId"
+      responses:
+        "200":
+          description: 消息历史
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MessageOut" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [matches]
+      summary: 发消息（按 client_message_id 幂等）
+      description: |
+        需 `conversation:v1`（双方）+ CSRF 头。
+
+        - 同 `match_id` + `sender_id` + `client_message_id` → 返回已存在的那条（200），
+          不会重复入库，**前端重试安全**
+        - match 非 `connected` → 403 `MATCH_NOT_CONNECTED`
+      parameters:
+        - $ref: "#/components/parameters/MatchId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageIn" }
+            examples:
+              default:
+                value:
+                  body: 最近有什么小事让你觉得生活变好了？
+                  client_message_id: uuid-1
+      responses:
+        "200":
+          description: 消息已创建 / 已存在（幂等命中）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageOut" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: "`IDEMPOTENCY_CONFLICT`（并发撞库，换新 id 重发）"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  # ---------------------------------------------------------------- planned (agent)
+  /api/v1/me/elicitations:
+    post:
+      tags: [agent-planned]
+      summary: 生成猜测卡（带极性 + 期望信息增益）
+      x-contract-status: planned
+      x-current-path: POST /users/{user_id}/elicit
+      x-current-auth: none
+      x-rate-limit: 6 次 / 60 秒（LLM）
+      description: |
+        **待迁移**：能力已实现，当前在旧根路径且无鉴权，迁移前前端不要直接依赖。
+        返回若干张猜测卡，每张卡的建议顺序由**期望信息增益**决定（不是随机、不是分数）。
+      responses:
+        "200":
+          description: 猜测卡集合
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ElicitOut" }
+
+  /api/v1/me/elicitations/{elicitation_id}/responses:
+    post:
+      tags: [agent-planned]
+      summary: 作答 → 贝叶斯更新
+      x-contract-status: planned
+      x-current-path: POST /users/{user_id}/respond
+      x-current-auth: none
+      x-rate-limit: 30 次 / 60 秒（写）
+      description: |
+        **待迁移**。`elicitation_id` 从旧接口的请求体提到路径参数。
+        返回 `entropy_before` / `entropy_after` / `entropy_delta`：
+        `entropy_delta` 为负表示不确定性下降。
+        ⚠️ 这些量**只能**用于"还在了解你"的不确定性可视化，禁止换算成百分比或匹配度。
+      parameters:
+        - name: elicitation_id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RespondIn" }
+      responses:
+        "200":
+          description: 更新后的后验与熵变化
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RespondOut" }
+
+  /api/v1/me/belief:
+    get:
+      tags: [agent-planned]
+      summary: 当前信念（α / β / 熵 / 置信区间）
+      x-contract-status: planned
+      x-current-path: GET /users/{user_id}/belief
+      x-current-auth: none
+      x-rate-limit: 120 次 / 60 秒（读）
+      responses:
+        "200":
+          description: 信念状态
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BeliefOut" }
+
+  /api/v1/me/story:
+    post:
+      tags: [agent-planned]
+      summary: 生成 Your Story
+      x-contract-status: planned
+      x-current-path: POST /users/{user_id}/story
+      x-current-auth: none
+      x-rate-limit: 6 次 / 60 秒（LLM）
+      description: 需要已有 profile（否则 409 `profile_missing`）。**不要**命名成"人格报告"。
+      responses:
+        "200":
+          description: 自述文本
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoryOut" }
+        "409":
+          description: "`profile_missing` / `user_not_found`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/me/profile:
+    get:
+      tags: [agent-planned]
+      summary: 行为画像摘要（内部用）
+      x-contract-status: planned
+      x-current-path: GET /users/{user_id}/profile
+      x-current-auth: none
+      responses:
+        "200":
+          description: 画像摘要
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfileOut" }
+
+  /api/v1/me/profile/refresh:
+    post:
+      tags: [agent-planned]
+      summary: 重算画像（会真实扣费）
+      x-contract-status: planned
+      x-current-path: POST /users/{user_id}/profile/refresh?force=
+      x-current-auth: none
+      x-rate-limit: 6 次 / 60 秒（LLM）
+      description: "事件序列未变化时命中缓存，返回 `updated: false`。"
+      parameters:
+        - name: force
+          in: query
+          schema: { type: boolean, default: false }
+          description: true 时忽略事件哈希缓存强制重算（真实扣费）
+      responses:
+        "200":
+          description: 重算结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfileRefreshOut" }
+
+  /api/v1/me/match-insights:
+    post:
+      tags: [agent-planned]
+      summary: 匹配叙事（共同点 / 差异 / 罕见共同点 / 世界观差异）
+      x-contract-status: planned
+      x-current-path: POST /users/{user_id}/match
+      x-current-auth: none
+      x-rate-limit: 6 次 / 60 秒（LLM）
+      description: |
+        返回四段式叙事 + `why_this_person`。响应中 `score` 与 `match_uncertainty`
+        被后端显式 `exclude`，**不会**出现在 JSON 里；`belief_entropy` 是"我们有多不确定"，
+        与匹配好坏无关。命名刻意避开 "match score"。
+      responses:
+        "200":
+          description: 叙事结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentMatchOut" }
+        "409":
+          description: "`profile_missing`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/relationships/{candidate_id}/signals:
+    post:
+      tags: [agent-planned]
+      summary: 关系级证据（聊天分析护城河）
+      x-contract-status: planned
+      x-current-path: POST /relationships/{user_a}/{user_b}/signals
+      x-current-auth: none
+      description: |
+        **待迁移**。`user_a` 改为从 session 取，路径只留 `candidate_id`。
+        这是关系级（A–B）证据，用于生成本对关系的后验——产品数据的真正壁垒所在。
+      parameters:
+        - name: candidate_id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RelationshipSignalIn" }
+      responses:
+        "200":
+          description: 关系后验
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RelationshipPosteriorOut" }
+
+  # ---------------------------------------------------------------- telemetry
+  /api/v1/events:
+    post:
+      tags: [telemetry]
+      summary: 上报行为埋点（批量）
+      x-contract-status: planned
+      x-current-path: POST /events
+      x-current-auth: none
+      description: |
+        **待迁移**。埋点是画像重算（`profile/refresh`）的输入，
+        前端在浏览/停留/点赞等行为时上报。`duration_ms` 必填（≥0）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventsIn" }
+      responses:
+        "200":
+          description: 写入条数
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventsOut" }
+        "400":
+          description: "`missing_user_ids`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /api/v1/me/events:
+    get:
+      tags: [telemetry]
+      summary: 我的行为事件
+      x-contract-status: planned
+      x-current-path: GET /users/{user_id}/events?limit=
+      x-current-auth: none
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, default: 20 }
+      responses:
+        "200":
+          description: 事件列表
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserEventsOut" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: tongpin_session
+      description: HttpOnly 会话 cookie，有效期 14 天，登录/注册时下发
+
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: >-
+        值必须等于 cookie `tongpin_csrf`。仅 POST / PATCH / DELETE 校验，
+        `auth/register` 与 `auth/login` 豁免。缺失或不匹配 → 403 CSRF_INVALID。
+      schema: { type: string }
+    MatchId:
+      name: match_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+
+  responses:
+    Unauthorized:
+      description: 未登录或 session 失效（`UNAUTHORIZED`）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: >-
+        `CSRF_INVALID` / `CONSENT_REQUIRED`（`details.scope`）/ `FORBIDDEN` /
+        `MATCH_NOT_CONNECTED`
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    CsrfInvalid:
+      description: CSRF 校验失败（`CSRF_INVALID`）—— 通常是前端漏带 X-CSRF-Token，不要提示用户
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: 资源不存在或不属于当前用户（`NOT_FOUND`）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Conflict:
+      description: 冲突（如 `EMAIL_TAKEN`）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ValidationError:
+      description: 参数校验失败（`VALIDATION_ERROR`，`details.errors` 为原始错误数组）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    # ------------------------------------------------------------ envelope
+    ErrorEnvelope:
+      type: object
+      required: [code, message, trace_id, details]
+      description: "`/api/v1/*` 全局统一错误体；响应头同时带 `X-Trace-Id`。成功响应不带此结构。"
+      properties:
+        code:
+          type: string
+          description: 机器可读错误码
+          examples: [CONSENT_REQUIRED, CSRF_INVALID, UNAUTHORIZED, VALIDATION_ERROR, HTTP_ERROR]
+        message:
+          type: string
+          description: 面向开发者/用户的短消息（中文）
+          examples: [需要先授权匹配用途]
+        trace_id:
+          type: string
+          description: 排查用追踪 id，前端上报问题时请带上
+        details:
+          type: object
+          additionalProperties: true
+          description: '结构化补充信息（如 `{"scope": "matching:v1"}`、`{"missing": ["life_weekend"]}`）'
+
+    # ------------------------------------------------------------ auth
+    RegisterIn:
+      type: object
+      required: [display_name, email, password, region]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 64, examples: [林屿] }
+        email: { type: string, minLength: 3, maxLength: 320, examples: [linyu@example.com] }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        birth_year: { type: [integer, "null"], minimum: 1900, maximum: 2100, examples: [1994] }
+        region: { type: string, minLength: 1, maxLength: 32, examples: [上海] }
+    LoginIn:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, minLength: 3, maxLength: 320 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    UserOut:
+      type: object
+      required: [id, display_name, email, birth_year, region, role, status]
+      properties:
+        id: { type: string, description: 字符串形式的用户 id }
+        display_name: { type: string }
+        email: { type: string }
+        birth_year: { type: [integer, "null"] }
+        region: { type: string }
+        role: { type: string, examples: [user] }
+        status: { type: string, examples: [active] }
+    AuthOut:
+      type: object
+      required: [user, csrf_token]
+      properties:
+        user: { $ref: "#/components/schemas/UserOut" }
+        csrf_token:
+          type: string
+          description: 与 cookie `tongpin_csrf` 同值；存内存即可，cookie 会自动携带
+
+    # ------------------------------------------------------------ consent
+    ConsentIn:
+      type: object
+      required: [scope, purpose]
+      properties:
+        scope:
+          type: string
+          description: "`matching:v1` 或 `conversation:v1`"
+          examples: ["matching:v1"]
+        purpose: { type: string, minLength: 1, examples: [用于关系匹配] }
+    ConsentOut:
+      type: object
+      required: [scope, purpose, granted_at]
+      properties:
+        scope: { type: string }
+        purpose: { type: string }
+        granted_at: { type: string, format: date-time, examples: ["2026-09-12T10:00:00Z"] }
+
+    # ------------------------------------------------------------ questionnaire
+    QuestionnaireOut:
+      type: object
+      required: [version, estimated_minutes, questions]
+      description: 后端当前返回原始 dict；此 schema 是前端类型化目标（字段已逐一核对）
+      properties:
+        version: { type: string, examples: [relationship-signals-v0.1] }
+        estimated_minutes: { type: integer, examples: [12] }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/QuestionnaireQuestion" }
+    QuestionnaireQuestion:
+      type: object
+      required: [id, section, dimension, prompt, help_text, kind, required, options]
+      properties:
+        id: { type: string, examples: [life_weekend] }
+        section: { type: string, examples: [生活节奏] }
+        dimension:
+          type: string
+          description: 提交 `answers` 时的 key
+          examples: [life_weekend]
+        prompt: { type: string, examples: ["一个理想的周末，你更想怎么度过？"] }
+        help_text: { type: string }
+        kind:
+          type: string
+          description: 目前恒为 single（multi 未实现）
+          enum: [single, multi]
+        required:
+          type: boolean
+          description: 必答题未答完时，`space/state` 会停在 EXPLORING
+        options:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/QuestionnaireOption" }
+    QuestionnaireOption:
+      type: object
+      required: [value, label, polarity]
+      properties:
+        value:
+          type: string
+          description: 提交时用这个字段（不是 label）
+          examples: [stay_home]
+        label: { type: string, examples: ["留在家里慢慢恢复"] }
+        polarity:
+          type: string
+          enum: [confirm, disconfirm, uncertain]
+          description: >-
+            信息熵引擎的输入极性。前端**禁止**据此改变视觉权重、排序或做暗示性标注。
+    QuestionnaireSubmissionIn:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+          description: 必须与 GET /api/v1/questionnaire 返回的 version 完全一致
+        answers:
+          type: object
+          additionalProperties: { type: string }
+          description: dimension → 选项 value。必答 dimension 缺失 → 400 QUESTIONNAIRE_INCOMPLETE
+          examples:
+            - { life_weekend: stay_home, comm_reply_frequency: daily }
+
+    # ------------------------------------------------------------ claims
+    ClaimOut:
+      type: object
+      required:
+        - id
+        - dimension
+        - value
+        - claim_type
+        - evidence_ids
+        - observed_at
+        - expires_at
+        - sensitivity
+        - user_editable
+        - user_confirmed
+        - correction_state
+      properties:
+        id: { type: string }
+        dimension: { type: string, examples: [life_weekend] }
+        value: { type: string, examples: [stay_home] }
+        claim_type: { type: string, examples: [preference] }
+        evidence_ids:
+          type: array
+          items: { type: string }
+          description: 这条判断的依据（Evidence 行 id）。展开"为什么这么想"时用；不要渲染 id 本身
+        observed_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time, description: 默认 30 天后，过期需重新确认 }
+        sensitivity: { type: string, examples: [L1] }
+        user_editable: { type: boolean }
+        user_confirmed: { type: boolean }
+        correction_state:
+          type: [object, "null"]
+          additionalProperties: true
+          description: 用户纠正状态，未纠正时为 null
+
+    # ------------------------------------------------------------ space
+    SpaceStateOut:
+      type: object
+      required: [state, question, profile, can_match]
+      description: 后端当前返回原始 dict；此 schema 是前端类型化目标
+      properties:
+        state:
+          type: string
+          enum: [EXPLORING, SELF_PROFILE_READY, MATCHING, CHAT]
+          description: 前端路由的唯一依据，不要自己推断
+        question:
+          type: [object, "null"]
+          description: 下一道未答题。⚠️ 其中 options 目前恒为空数组，请改用 GET /api/v1/questionnaire
+          properties:
+            id: { type: string }
+            dimension: { type: string }
+            prompt: { type: string }
+            options: { type: array, items: {}, description: 目前恒为空数组 }
+        profile:
+          type: [object, "null"]
+          description: 预留字段，目前恒为 null
+        can_match: { type: boolean, description: 已授权 matching:v1 且必答题全答 }
+
+    # ------------------------------------------------------------ recommendations
+    RecommendationItemOut:
+      type: object
+      required:
+        - recommendation_id
+        - candidate_id
+        - display_name
+        - headline
+        - common_signals
+        - differences
+        - unknowns
+        - how_to_continue
+        - evidence_ids
+      description: |
+        **没有**任何 score / percent / rank / level 字段 —— 这是刻意的，不是遗漏。
+        前端不得重排、不得二次打分、不得自行计算匹配度。
+      properties:
+        recommendation_id: { type: string }
+        candidate_id: { type: string }
+        display_name: { type: string, examples: [林屿] }
+        headline:
+          type: string
+          description: 卡片主文案，由证据组合生成（不是硬编码，也不是分数）
+          examples: ["你们在「生活节奏」上比较接近，而「沟通频率」还不太确定"]
+        common_signals:
+          type: array
+          items: { type: string }
+          description: 「共同点」区块
+        differences:
+          type: array
+          items: { type: string }
+          description: 「差异」区块。中性好奇语气，不要写成"不合适/冲突"
+        unknowns:
+          type: array
+          items: { type: string }
+          description: 「还不确定」区块 —— **必须渲染**，这是产品诚实感的来源
+        how_to_continue:
+          type: array
+          items: { type: string }
+          description: 「可以这样开始」的建议句，不要改写成命令式
+        evidence_ids:
+          type: array
+          items: { type: string }
+          description: 理由依据。不要渲染 id、不要拿条数当"可信度"
+    RecommendationsOut:
+      type: object
+      required: [generated_at, session_id, items]
+      properties:
+        generated_at: { type: string, format: date-time }
+        session_id: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/RecommendationItemOut" }
+          description: 返回顺序即排序，前端不得重排
+
+    # ------------------------------------------------------------ invitation
+    InvitationIn:
+      type: object
+      required: [candidate_id, message]
+      properties:
+        candidate_id:
+          type: string
+          description: 字符串形式（后端转 int；非法值 → 400 INVALID_CANDIDATE）。不能邀请自己
+        message: { type: string, minLength: 1, maxLength: 4000 }
+    InvitationOut:
+      type: object
+      required: [match_id, status]
+      properties:
+        match_id: { type: string }
+        status:
+          type: string
+          enum: [pending, connected]
+          description: 双向邀请后自动变 connected；只有 connected 才能发消息
+
+    # ------------------------------------------------------------ matches
+    MatchOut:
+      type: object
+      required: [match_id, candidate_id, status, connected_at]
+      properties:
+        match_id: { type: string }
+        candidate_id: { type: string, description: 对方用户 id }
+        status: { type: string, enum: [pending, connected] }
+        connected_at: { type: [string, "null"], format: date-time }
+    MessageIn:
+      type: object
+      required: [body, client_message_id]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+        client_message_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 前端生成的 uuid，用于幂等重试；同值重发返回同一条消息
+    MessageOut:
+      type: object
+      required: [id, conversation_id, sender_id, body, client_message_id, created_at, read_at]
+      properties:
+        id: { type: string }
+        conversation_id: { type: string, description: 与 match_id 同值 }
+        sender_id: { type: string }
+        body: { type: string }
+        client_message_id: { type: string }
+        created_at: { type: string, format: date-time }
+        read_at: { type: [string, "null"], format: date-time }
+    WsMessageEvent:
+      type: object
+      description: WebSocket 事件体（见 x-websocket-endpoints）。data 不含 sender_id / created_at
+      required: [type, data]
+      properties:
+        type: { type: string, enum: [messages.snapshot, message.created] }
+        data:
+          oneOf:
+            - type: array
+              description: messages.snapshot 的 data 恒为空数组
+              items: {}
+            - type: object
+              required: [id, body]
+              properties:
+                id: { type: string }
+                body: { type: string }
+
+    # ------------------------------------------------------------ agent (planned)
+    OptionOut:
+      type: object
+      required: [text, polarity]
+      properties:
+        text: { type: string }
+        polarity: { type: string, enum: [confirm, disconfirm, uncertain] }
+    CardOut:
+      type: object
+      required: [elicitation_id, question, kind, options, expected_information_gain, evidence_weight]
+      properties:
+        elicitation_id: { type: integer }
+        question: { type: string }
+        kind: { type: string, examples: [single_choice] }
+        options:
+          type: array
+          items: { $ref: "#/components/schemas/OptionOut" }
+        expected_information_gain:
+          type: number
+          description: 期望信息增益（后端用它决定先问哪张卡；**不要**展示给用户，也不要换算成百分比）
+        evidence_weight: { type: number }
+    ElicitOut:
+      type: object
+      required: [user_id, belief_entropy_before, cards]
+      properties:
+        user_id: { type: integer }
+        belief_entropy_before: { type: number, description: 作答前的伯努利熵（0 ~ 0.6931） }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/CardOut" }
+    RespondIn:
+      type: object
+      required: [elicitation_id, choice, reaction_time_ms]
+      properties:
+        elicitation_id: { type: integer, minimum: 1 }
+        choice: { type: string, minLength: 1, maxLength: 500, description: 选项文本 }
+        reaction_time_ms: { type: integer, minimum: 0, maximum: 600000 }
+    RespondOut:
+      type: object
+      required:
+        - user_id
+        - hypothesis
+        - choice
+        - alpha
+        - beta
+        - belief_mean
+        - entropy_before
+        - entropy_after
+        - entropy_delta
+      properties:
+        user_id: { type: integer }
+        hypothesis: { type: string, examples: [match] }
+        choice: { type: string }
+        alpha: { type: number }
+        beta: { type: number }
+        belief_mean: { type: number, minimum: 0, maximum: 1 }
+        entropy_before: { type: number }
+        entropy_after: { type: number }
+        entropy_delta:
+          type: number
+          description: 负值表示不确定性下降。只可用于"还在了解你"的可视化，禁止换算成百分比
+    BeliefOut:
+      type: object
+      required:
+        - user_id
+        - hypothesis
+        - alpha
+        - beta
+        - mean
+        - strength
+        - entropy
+        - ci_low
+        - ci_high
+        - responses_counted
+      properties:
+        user_id: { type: integer }
+        hypothesis: { type: string }
+        alpha: { type: number }
+        beta: { type: number }
+        mean: { type: number }
+        strength: { type: number, description: α+β，证据量 }
+        entropy: { type: number, description: 伯努利熵（0 ~ 0.6931），越小越确定 }
+        ci_low: { type: number }
+        ci_high: { type: number }
+        responses_counted: { type: integer, description: 参与回放的作答条数 }
+    StoryOut:
+      type: object
+      required: [user_id, message, story]
+      properties:
+        user_id: { type: integer }
+        message: { type: string }
+        story: { type: string, description: Your Story 文本（**不要**命名成"人格报告"） }
+    ProfileOut:
+      type: object
+      required: [user_id, summary, embedding_dims, source_hash, updated_at]
+      properties:
+        user_id: { type: integer }
+        summary: { type: string }
+        embedding_dims: { type: integer }
+        source_hash: { type: string }
+        updated_at: { type: string, format: date-time }
+    ProfileRefreshOut:
+      type: object
+      required: [user_id, updated, summary, summary_chars, embedding_dims]
+      properties:
+        user_id: { type: integer }
+        updated: { type: boolean, description: false 表示事件序列未变化、命中缓存 }
+        summary: { type: string }
+        summary_chars: { type: integer }
+        embedding_dims: { type: integer }
+    MatchNarrativeOut:
+      type: object
+      required: [shared, differences, rare_common, worldviews, why_this_person]
+      properties:
+        shared: { type: array, items: { type: string }, description: 共同点 }
+        differences: { type: array, items: { type: string }, description: 差异 }
+        rare_common: { type: array, items: { type: string }, description: 罕见共同点 }
+        worldviews: { type: array, items: { type: string }, description: 世界观差异 }
+        why_this_person: { type: string, description: 「为什么是这个人」整段叙事 }
+    AgentMatchOut:
+      type: object
+      required: [user_id, matched_user_id, belief_entropy, narrative, reasons, explanation]
+      description: |
+        `score` 与 `match_uncertainty` 被后端显式 exclude，不会出现在 JSON 中；
+        仅 `belief_entropy`（我们有多不确定）对外可见。
+      properties:
+        user_id: { type: integer }
+        matched_user_id: { type: integer }
+        belief_entropy: { type: number, description: 当前用户信念的伯努利熵，越小越确定 }
+        narrative: { $ref: "#/components/schemas/MatchNarrativeOut" }
+        reasons: { type: array, items: { type: string } }
+        explanation: { type: string }
+    RelationshipSignalIn:
+      type: object
+      required: [kind]
+      properties:
+        source: { type: string }
+        kind: { type: string }
+        content: { type: string }
+        weight: { type: number }
+    RelationshipPosteriorOut:
+      type: object
+      required: [relationship_id, user_a, user_b, alpha, beta, mean, entropy]
+      properties:
+        relationship_id: { type: integer }
+        user_a: { type: integer }
+        user_b: { type: integer }
+        alpha: { type: number }
+        beta: { type: number }
+        mean: { type: number }
+        entropy: { type: number }
+
+    # ------------------------------------------------------------ telemetry (planned)
+    BehaviorEventType:
+      type: string
+      enum: [browse, dwell, like, swipe]
+    EventIn:
+      type: object
+      required: [user_id, event_type, duration_ms]
+      properties:
+        user_id: { type: integer }
+        event_type: { $ref: "#/components/schemas/BehaviorEventType" }
+        target_id: { type: [string, "null"] }
+        duration_ms: { type: integer, minimum: 0, maximum: 86400000 }
+    EventsIn:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/EventIn" }
+    EventsOut:
+      type: object
+      required: [inserted]
+      properties:
+        inserted: { type: integer }
+    EventOut:
+      type: object
+      required: [id, event_type, target_id, duration_ms, created_at]
+      properties:
+        id: { type: integer }
+        event_type: { $ref: "#/components/schemas/BehaviorEventType" }
+        target_id: { type: [string, "null"] }
+        duration_ms: { type: [integer, "null"] }
+        created_at: { type: string, format: date-time }
+    UserEventsOut:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/EventOut" }
