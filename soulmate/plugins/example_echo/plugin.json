@@ -1,0 +1,17 @@
+{
+  "id": "example_echo",
+  "name": "Example Echo Plugin",
+  "description": "Example plugin that echoes args or returns simple computed values.",
+  "tools": [
+    {
+      "name": "echo",
+      "description": "Echo back the provided arguments.",
+      "entrypoint": "main.py:echo"
+    },
+    {
+      "name": "add",
+      "description": "Add two numbers: a + b.",
+      "entrypoint": "main.py:add"
+    }
+  ]
+}
