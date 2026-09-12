@@ -79,9 +79,11 @@ def test_ws_rejects_without_session_cookie(client: TestClient) -> None:
     match_id = _connected_match(client)
     client.cookies.clear()
 
-    with client.websocket_connect(f"/api/v1/ws/matches/{match_id}") as ws:
-        with pytest.raises(WebSocketDisconnect) as exc:
-            ws.receive_json()
+    with (
+        client.websocket_connect(f"/api/v1/ws/matches/{match_id}") as ws,
+        pytest.raises(WebSocketDisconnect) as exc,
+    ):
+        ws.receive_json()
 
     assert exc.value.code == 4401
 
@@ -92,9 +94,11 @@ def test_ws_rejects_non_member(client: TestClient) -> None:
     client.cookies.clear()
     _register(client, display_name="路人")
 
-    with client.websocket_connect(f"/api/v1/ws/matches/{match_id}") as ws:
-        with pytest.raises(WebSocketDisconnect) as exc:
-            ws.receive_json()
+    with (
+        client.websocket_connect(f"/api/v1/ws/matches/{match_id}") as ws,
+        pytest.raises(WebSocketDisconnect) as exc,
+    ):
+        ws.receive_json()
 
     assert exc.value.code == 4403
 
