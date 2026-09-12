@@ -47,15 +47,28 @@ def test_collect_share_text_creates(db):
     assert client.calls[0].share_text == "http://xhslink.com/a/xyz"
 
 
-def test_collect_red_id_goes_to_needs_review_without_api_call(db):
+def test_collect_red_id_is_auto_resolved(db):
     client = FakeTikhubClient()
+    results = collect_identifiers(db, "757954382", client, interval=0)
+    assert results[0].status == "created"
+    assert results[0].profile_url == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
+
+    lead = db.query(XhsUser).one()
+    assert lead.red_id == "757954382"
+    assert lead.user_id == "61b46d790000000010008153"
+    assert lead.status == "fetched"
+    assert client.search_calls == [("757954382", 1)]
+
+
+def test_collect_red_id_falls_back_to_needs_review_when_no_match(db):
+    client = FakeTikhubClient(search_users_results=[])
     results = collect_identifiers(db, "757954382", client, interval=0)
     assert results[0].status == "needs_review"
 
     lead = db.query(XhsUser).one()
     assert lead.red_id == "757954382"
     assert lead.status == "needs_review"
-    assert client.calls == []
+    assert "未找到" in (lead.error or "")
 
 
 def test_collect_failed_uid_is_recorded(db):

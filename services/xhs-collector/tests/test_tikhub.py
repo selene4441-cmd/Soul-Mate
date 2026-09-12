@@ -1,4 +1,4 @@
-from app.tikhub import _find_error, _find_note_node, _parse_note, extract_user_fields
+from app.tikhub import _find_error, _find_note_node, _find_user_list, _parse_note, extract_user_fields
 
 
 def sample_payload():
@@ -32,6 +32,21 @@ def test_extract_user_fields_from_nested_payload():
     assert fields["following_count"] == 300
     assert fields["notes_count"] == 88
     assert fields["interaction_count"] == 45600
+
+
+def test_find_user_list_from_search_shape():
+    payload = {
+        "data": {
+            "users": [
+                {"user_id": "u1", "red_id": "123"},
+                {"user_id": "u2"},
+            ]
+        }
+    }
+    assert _find_user_list(payload) == [
+        {"user_id": "u1", "red_id": "123"},
+        {"user_id": "u2"},
+    ]
 
 
 def test_find_error_detects_non_success_code():

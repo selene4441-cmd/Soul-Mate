@@ -129,6 +129,14 @@ def _find_list(payload: Any, key: str) -> list | None:
     return None
 
 
+def _find_user_list(payload: Any) -> list:
+    for key in ("users", "user_list", "list"):
+        items = _find_list(payload, key)
+        if items:
+            return items
+    return []
+
+
 def _parse_note(node: dict) -> dict[str, Any]:
     note_id = node.get("id") or node.get("note_id")
     images: list[str] = []
@@ -227,6 +235,21 @@ class TikhubClient:
             raise TikhubError("未能从响应中解析出用户信息（标识符可能无效或账号不存在）")
         fields["raw_json"] = json.dumps(payload, ensure_ascii=False)
         return fields
+
+    def search_users(self, keyword: str, page: int = 1) -> list[dict[str, Any]]:
+        """Search Xiaohongshu users by keyword and return normalized user fields."""
+        payload = self._request_get(
+            "/api/v1/xiaohongshu/app_v2/search_users",
+            {"keyword": keyword, "page": page},
+        )
+        users: list[dict[str, Any]] = []
+        for node in _find_user_list(payload):
+            if not isinstance(node, dict):
+                continue
+            fields = extract_user_fields(node)
+            if fields.get("user_id"):
+                users.append(fields)
+        return users
 
     def fetch_posted_notes(self, user_id: str, max_notes: int = 100) -> dict[str, Any]:
         notes: list[dict[str, Any]] = []

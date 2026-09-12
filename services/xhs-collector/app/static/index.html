@@ -56,7 +56,7 @@
       <div id="urlResult" class="url-result"></div>
     </section>
     <section class="card">
-      <textarea id="input" placeholder="每行粘贴一个账号，支持：&#10;1. 主页链接：https://www.xiaohongshu.com/user/profile/61b46d790000000010008153&#10;2. 分享短链：http://xhslink.com/a/xxxx&#10;3. 24位 hex user_id：61b46d790000000010008153&#10;4. 小红书号：757954382（需后续补链接解析）"></textarea>
+      <textarea id="input" placeholder="每行粘贴一个账号，支持：&#10;1. 主页链接：https://www.xiaohongshu.com/user/profile/61b46d790000000010008153&#10;2. 分享短链：http://xhslink.com/a/xxxx&#10;3. 24位 hex user_id：61b46d790000000010008153&#10;4. 小红书号：757954382（自动搜索解析）"></textarea>
       <div class="row">
         <button id="collectBtn" onclick="collect()">开始采集</button>
         <button class="ghost" onclick="load()">刷新列表</button>
@@ -65,7 +65,7 @@
       </div>
       <div class="hint">
         微信群里的“分享用户”会生成一段含短链的文字，直接把整段文字粘贴进来即可（支持多行）。
-        小红书号（数字）无法被 Tikhub 直接解析，会进入“待解析”，点列表里的“解析”补主页链接即可。
+        小红书号（数字）会自动搜索匹配并解析为主页网址；若搜索不到完全匹配的用户，会进入“待解析”，点列表里的“解析”补主页链接即可。
         后台会按配置定时增量刷新已入库账号的粉丝数/笔记数，也可以点“立即刷新数据”手动触发。
       </div>
     </section>

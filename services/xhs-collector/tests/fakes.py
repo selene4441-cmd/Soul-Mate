@@ -2,9 +2,15 @@ from app.tikhub import TikhubError
 
 
 class FakeTikhubClient:
-    def __init__(self, fail_values=None):
+    def __init__(self, fail_values=None, search_users_results=None):
         self.calls = []
+        self.search_calls = []
         self.fail_values = set(fail_values or [])
+        self.search_users_results = (
+            search_users_results
+            if search_users_results is not None
+            else [{"user_id": "61b46d790000000010008153", "red_id": "757954382", "nickname": "测试用户"}]
+        )
 
     def fetch_user(self, parsed):
         self.calls.append(parsed)
@@ -24,6 +30,10 @@ class FakeTikhubClient:
             "interaction_count": 45600,
             "raw_json": '{"code": 200}',
         }
+
+    def search_users(self, keyword, page=1):
+        self.search_calls.append((keyword, page))
+        return self.search_users_results
 
     def fetch_posted_notes(self, user_id, max_notes=100):
         return {

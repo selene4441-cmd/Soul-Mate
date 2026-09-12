@@ -31,18 +31,20 @@ def test_collect_red_id_and_list(client):
     response = client.post("/api/v1/collect", json={"text": "757954382"})
     assert response.status_code == 200
     data = response.json()
-    assert data["summary"]["needs_review"] == 1
+    assert data["summary"]["created"] == 1
     assert data["results"][0]["lead_id"] is not None
+    assert data["results"][0]["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
 
     response = client.get("/api/v1/leads")
     assert response.status_code == 200
     items = response.json()["items"]
     assert items[0]["red_id"] == "757954382"
-    assert items[0]["status"] == "needs_review"
+    assert items[0]["status"] == "fetched"
+    assert items[0]["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
 
 
 def test_resolve_lead(client):
-    response = client.post("/api/v1/collect", json={"text": "757954382"})
+    response = client.post("/api/v1/collect", json={"text": "大家好，这是我的客户"})
     lead_id = response.json()["results"][0]["lead_id"]
 
     response = client.post(
@@ -124,9 +126,10 @@ def test_account_to_url_for_red_id(client):
     response = client.post("/api/v1/url", json={"account": "757954382"})
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "needs_review"
-    assert body["profile_url"] is None
+    assert body["status"] == "fetched"
+    assert body["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
     assert body["red_id"] == "757954382"
+    assert body["nickname"] == "测试用户"
 
 
 def test_account_to_url_for_unknown_text(client):
@@ -172,6 +175,33 @@ def test_account_to_url_failure():
     body = response.json()
     assert body["status"] == "failed"
     assert "账号不存在" in body["message"]
+
+
+def test_account_to_url_red_id_no_match():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    settings = Settings(
+        database_url="sqlite://",
+        tikhub_api_key="test-key",
+        request_interval_seconds=0,
+        refresh_enabled=False,
+        auto_create_db=True,
+    )
+    app = create_app(
+        settings=settings,
+        engine=engine,
+        client=FakeTikhubClient(search_users_results=[]),
+    )
+    with TestClient(app) as test_client:
+        response = test_client.post("/api/v1/url", json={"account": "757954382"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "needs_review"
+    assert body["profile_url"] is None
+    assert body["red_id"] == "757954382"
 
 
 def test_export_csv_includes_profile_url(client):

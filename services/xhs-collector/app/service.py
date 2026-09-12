@@ -23,13 +23,62 @@ def _get_by_source(db: Session, source: str) -> XhsUser | None:
     return db.execute(select(XhsUser).where(XhsUser.source == source)).scalars().first()
 
 
-def resolve_account_url(account: str, client: TikhubClient) -> AccountUrlResponse:
-    """Resolve a single Xiaohongshu account input to its profile URL.
+def _account_url_response(
+    account: str,
+    fields: dict[str, Any],
+    *,
+    status: str = "fetched",
+    message: str = "",
+) -> AccountUrlResponse:
+    user_id = fields.get("user_id")
+    return AccountUrlResponse(
+        account=account,
+        status=status,
+        profile_url=profile_url_for(user_id),
+        user_id=user_id,
+        nickname=fields.get("nickname"),
+        red_id=fields.get("red_id"),
+        message=message,
+    )
 
-    Only inputs that TikHub can resolve directly (profile link, share link, or
-    24-hex user_id) produce a profile URL. A bare red_id/nickname is returned
-    as needs_review so the caller can supply a resolvable identifier.
+
+def _resolve_red_id_user(
+    red_id: str,
+    client: TikhubClient,
+    *,
+    verify_limit: int = 5,
+    interval: float = 0.0,
+) -> dict[str, Any] | None:
+    """Resolve a Xiaohongshu red_id to authoritative user fields.
+
+    Returns None when no candidate exactly matches the red_id; raises
+    TikhubError for upstream API failures.
     """
+    candidates = client.search_users(red_id)
+
+    for candidate in candidates:
+        if str(candidate.get("red_id") or "").strip() == red_id and candidate.get("user_id"):
+            return candidate
+
+    for candidate in candidates[:verify_limit]:
+        user_id = candidate.get("user_id")
+        if not user_id:
+            continue
+        try:
+            fields = client.fetch_user(
+                ParsedIdentifier(type="user_id", value=user_id, user_id=user_id)
+            )
+        except TikhubError:
+            continue
+        if str(fields.get("red_id") or "").strip() == red_id:
+            return fields
+        time.sleep(interval)
+
+    return None
+
+
+def resolve_account_url(account: str, client: TikhubClient) -> AccountUrlResponse:
+    """Resolve a single Xiaohongshu account input to its profile URL."""
     account = (account or "").strip()
     if not account:
         return AccountUrlResponse(account=account, status="invalid", message="请输入小红书账号")
@@ -40,12 +89,26 @@ def resolve_account_url(account: str, client: TikhubClient) -> AccountUrlRespons
 
     parsed = parsed_items[0]
     if parsed.type == "red_id":
-        return AccountUrlResponse(
-            account=account,
-            status="needs_review",
-            red_id=parsed.value,
-            message="小红书号无法直接解析，请提供主页分享链接或 24 位 user_id",
-        )
+        try:
+            fields = _resolve_red_id_user(parsed.value, client)
+        except TikhubError as exc:
+            return AccountUrlResponse(
+                account=account,
+                status="failed",
+                red_id=parsed.value,
+                message=str(exc),
+            )
+        if fields is None:
+            return AccountUrlResponse(
+                account=account,
+                status="needs_review",
+                red_id=parsed.value,
+                message="未找到与该小红书号完全匹配的用户，请提供主页分享链接或 24 位 user_id",
+            )
+        if not fields.get("red_id"):
+            fields = {**fields, "red_id": parsed.value}
+        return _account_url_response(account, fields)
+
     if parsed.type not in {"user_id", "share_text"}:
         return AccountUrlResponse(
             account=account,
@@ -58,18 +121,10 @@ def resolve_account_url(account: str, client: TikhubClient) -> AccountUrlRespons
     except TikhubError as exc:
         return AccountUrlResponse(account=account, status="failed", message=str(exc))
 
-    user_id = fields.get("user_id")
-    if not user_id:
+    if not fields.get("user_id"):
         return AccountUrlResponse(account=account, status="failed", message="未能从接口解析出用户 ID")
 
-    return AccountUrlResponse(
-        account=account,
-        status="fetched",
-        profile_url=profile_url_for(user_id),
-        user_id=user_id,
-        nickname=fields.get("nickname"),
-        red_id=fields.get("red_id"),
-    )
+    return _account_url_response(account, fields)
 
 
 def _apply_fields(lead: XhsUser, parsed: ParsedIdentifier, fields: dict[str, Any]) -> None:
@@ -121,16 +176,21 @@ def _upsert_failed(db: Session, parsed: ParsedIdentifier, message: str) -> tuple
     return lead, created
 
 
-def _upsert_needs_review(db: Session, parsed: ParsedIdentifier) -> tuple[XhsUser, bool, bool]:
+def _upsert_needs_review(
+    db: Session,
+    parsed: ParsedIdentifier,
+    message: str | None = None,
+) -> tuple[XhsUser, bool, bool]:
     lead = _get_by_source(db, parsed.value)
     if lead is not None:
         return lead, False, True
 
-    message = (
-        "小红书号无法直接被 Tikhub 解析，请提供该用户的主页分享链接或 24 位 hex user_id 后解析"
-        if parsed.type == "red_id"
-        else "无法识别该标识，请提供主页分享链接或 user_id"
-    )
+    if message is None:
+        message = (
+            "小红书号无法直接被 Tikhub 解析，请提供该用户的主页分享链接或 24 位 hex user_id 后解析"
+            if parsed.type == "red_id"
+            else "无法识别该标识，请提供主页分享链接或 user_id"
+        )
     lead = XhsUser(
         source=parsed.value,
         identifier_type=parsed.type,
@@ -190,6 +250,56 @@ def collect_identifiers(
                     )
                 finally:
                     time.sleep(interval)
+            elif parsed.type == "red_id":
+                fields = None
+                message = None
+                try:
+                    fields = _resolve_red_id_user(parsed.value, client, interval=interval)
+                except TikhubError as exc:
+                    message = str(exc)
+                finally:
+                    time.sleep(interval)
+
+                if fields is None and message is None:
+                    message = "未找到与该小红书号完全匹配的用户，请提供主页分享链接或 24 位 user_id"
+
+                if fields and fields.get("user_id"):
+                    if not fields.get("red_id"):
+                        fields = {**fields, "red_id": parsed.value}
+                    lead, created = _upsert_fetched(db, parsed, fields)
+                    results.append(
+                        CollectResult(
+                            raw=parsed.value,
+                            identifier_type=parsed.type,
+                            status="created" if created else "updated",
+                            user_id=lead.user_id,
+                            nickname=lead.nickname,
+                            profile_url=profile_url_for(lead.user_id),
+                            lead_id=lead.id,
+                        )
+                    )
+                else:
+                    lead, _, skipped = _upsert_needs_review(db, parsed, message=message)
+                    if skipped:
+                        results.append(
+                            CollectResult(
+                                raw=parsed.value,
+                                identifier_type=parsed.type,
+                                status="skipped",
+                                message="该标识已存在且待解析",
+                                lead_id=lead.id,
+                            )
+                        )
+                    else:
+                        results.append(
+                            CollectResult(
+                                raw=parsed.value,
+                                identifier_type=parsed.type,
+                                status="needs_review",
+                                message=lead.error or "",
+                                lead_id=lead.id,
+                            )
+                        )
             else:
                 lead, _, skipped = _upsert_needs_review(db, parsed)
                 if skipped:
