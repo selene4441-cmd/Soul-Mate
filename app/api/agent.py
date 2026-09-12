@@ -33,6 +33,7 @@ from app.agents.evidence import option_polarities
 from app.agents.match_agent import match_user
 from app.agents.orchestrator import explain_match
 from app.agents.profile_agent import update_user_profile_from_events
+from app.agents.story_agent import READY_MESSAGE, generate_story
 from app.api.events import SessionDep, enforce_rate_limit
 from app.core.belief import confidence_interval, entropy
 from app.core.ratelimit import RateLimit
@@ -131,6 +132,12 @@ class ElicitOut(BaseModel):
     user_id: int
     belief_entropy_before: float
     cards: list[CardOut]
+
+
+class StoryOut(BaseModel):
+    user_id: int
+    message: str
+    story: str
 
 
 class RespondIn(BaseModel):
@@ -277,6 +284,24 @@ def post_match(request: Request, session: SessionDep, user_id: int = Path(..., g
         reasons=reasons,
         explanation=explanation,
     )
+
+
+@router.post(
+    "/{user_id}/story",
+    response_model=StoryOut,
+    dependencies=[Depends(enforce_rate_limit(READ_LIMIT))],
+)
+def post_story(session: SessionDep, user_id: int = Path(..., ge=1)) -> StoryOut:
+    """当信念强度足够（α+β≥8）时返回一段“How I See You”口吻的第一人称叙事。"""
+    _require_consented_user(session, user_id)
+    _require_profile(session, user_id)
+
+    try:
+        result = generate_story(session=session, user_id=user_id, min_strength=8.0)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    return StoryOut(user_id=user_id, message=READY_MESSAGE, story=result.story)
 
 
 @router.post(
