@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
@@ -15,7 +15,7 @@ env/
 
 *.sqlite3
 *.db
-data/
+data/*
 !data/.gitkeep
 
 logs/*.jsonl
