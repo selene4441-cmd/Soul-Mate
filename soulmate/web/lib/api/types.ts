@@ -1,3 +1,5 @@
+// redlines:ignore-file —— 本文件是后端接口的类型定义，末尾的 PRODUCT_FORBIDDEN_WORDS 是
+// "红线词清单"本身（立法而非违规），因此让 scripts/check-redlines.mjs 跳过整个文件。
 /**
  * SoulMate Agent API —— TypeScript 类型定义
  *

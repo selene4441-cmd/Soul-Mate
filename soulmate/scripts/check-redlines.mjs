@@ -35,6 +35,14 @@ const SKIP_DIRS = new Set(["node_modules", ".next", "dist", "build", ".git", "ou
 const SKIP_FILES = new Set(["check-redlines.mjs"]); // 别把自己词表里的红线词算成命中
 const CODE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".html", ".css"]);
 
+/**
+ * 文件级豁免：前 8 行内出现这个标记就整文件跳过。
+ * 用于**定义**红线词表的文件（例如 lib/api/types.ts 里的 PRODUCT_FORBIDDEN_WORDS），
+ * 它们写这些词是"立法"，不是"违规"。
+ */
+const SKIP_MARKER = "redlines:ignore-file";
+const MARKER_SCAN_LINES = 8;
+
 const args = process.argv.slice(2);
 const roots = args.length > 0 ? args : ["."];
 
@@ -70,9 +78,15 @@ function scanFile(file) {
     return;
   }
   scanned += 1;
+  const head = content.split("\n", MARKER_SCAN_LINES).join("\n");
+  if (head.includes(SKIP_MARKER)) return; // 文件级豁免（立法文件）
+
   content.split("\n").forEach((raw, idx) => {
-    const line = raw.trim();
-    if (!line || line.startsWith("//") || line.startsWith("*")) return; // 跳过注释，避免误报文档性说明
+    // 去掉行尾注释后再判断，避免"我们不做匹配度"这类说明被误判
+    const withoutInlineComment = raw.split("//")[0];
+    const line = withoutInlineComment.trim();
+    if (!line) return;
+    if (line.startsWith("//") || line.startsWith("/*") || line.startsWith("*")) return; // 整行注释
 
     for (const word of FORBIDDEN_WORDS) {
       if (line.includes(word)) {
