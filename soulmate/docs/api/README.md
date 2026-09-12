@@ -8,13 +8,16 @@
 
 | 文件 | 定位 | 怎么用 |
 |---|---|---|
-| `HANDOFF.md` | **交接说明**（给你自己看的） | 怎么交付、怎么验收、改动规则 |
+| `START-HERE.md` | **前端操作说明**（给前端） | 三条上手路径、排查表、红线、提问模板 |
+| `HANDOFF.md` | **交接说明**（给你自己看的） | 交付渠道、怎么验收、改动规则 |
 | `API-CONTRACT.md` | **人读契约**（主文档） | 接入方式、错误码表、状态机、逐接口、产品红线、联调 checklist |
 | `openapi.yaml` | **机器可读契约**（OpenAPI 3.1，25 路径 / 27 操作 / 40 schema） | 导入 Postman/Apifox；或 `npx @stoplight/prism-cli mock openapi.yaml --port 4010` 起 mock |
 | `../../web/lib/api/types.ts` | **TypeScript 类型**（`--strict` 通过） | 直接 `import type { ... } from "@/lib/api/types"` |
 | `../../web/lib/api/client.ts` | **类型化客户端**（无依赖） | 已封装同源代理、CSRF 双提交、统一错误、WebSocket 去重 |
+| `../../web/app/api/proxy/v1/[...path]/route.ts` | **同源代理现成实现** | 已在脚手架里就位，前端不用再写 |
 | `../../scripts/seed_demo.py` | **演示数据**（5 个账号覆盖四种状态） | `python -m scripts.seed_demo --reset` |
 | `../../scripts/smoke_e2e.py` | **可执行的验收标准**（17 项） | `python -m scripts.smoke_e2e` |
+| `../../scripts/check-redlines.mjs` | **红线词自查** | `node scripts/check-redlines.mjs src`（接进 CI） |
 | `tools/validate-openapi.py` | 契约自检 | `cd docs/api && python tools/validate-openapi.py` |
 | `tools/lint-yaml-plain.py` | 契约自检 | `python tools/lint-yaml-plain.py openapi.yaml` |
 
