@@ -106,6 +106,16 @@ alembic upgrade head
 
 UI 回归测试会阻止匹配百分比、星级、等级、固定人格标签和确定性措辞重新进入产品界面。
 
+## 接入已有后端框架
+
+如果同伴已经准备好自己的后端框架，推荐让它作为同源网关反向代理 `/api/v1`，并保留 Cookie、CSRF、幂等键和 WebSocket Upgrade。不要复制同频的 Claim、匹配或安全规则，也不要直接连接同频数据库。
+
+- 接入方案、Express 与 Spring Cloud Gateway 示例：`docs/backend-integration.md`
+- Nginx 配置样例：`infra/nginx/tongpin.conf`
+- API 契约：`packages/contracts/openapi.json`
+
+当前版本尚未提供服务账号/API Key 模式。如果同伴要让自有用户体系从服务端直接调用，而不是做网关或用户会话代理，需要先补一份独立的服务间认证契约。
+
 ## Docker Compose
 
 ```powershell
