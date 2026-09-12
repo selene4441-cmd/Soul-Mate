@@ -27,13 +27,17 @@ def _require_ws_user(*, websocket: WebSocket, db: Session) -> User | None:
 
 @router.websocket("/matches/{match_id}")
 async def ws_match(websocket: WebSocket, match_id: str, db: SessionDep) -> None:
+    # 注意：必须「先 accept 再 close」，否则 uvicorn 会把握手阶段的 close 降级成
+    # HTTP 403，浏览器只能看到 1006，无法区分「未登录」与「不属于该会话」。
     user = _require_ws_user(websocket=websocket, db=db)
     if user is None:
+        await websocket.accept()
         await websocket.close(code=4401)
         return
 
     match = db.get(Match, match_id)
     if match is None or user.id not in {match.user_a_id, match.user_b_id}:
+        await websocket.accept()
         await websocket.close(code=4403)
         return
 
