@@ -38,6 +38,12 @@ class MatchingMetricsDocumentTest(unittest.TestCase):
             "P(关系结果良好 | A、B、当前状态、互动过程、推荐策略)",
             "good_outcome_14d",
             "敏感个人信息",
+            "成长同向性",
+            "时间边界",
+            "空间与自主",
+            "y_growth_alignment_30d",
+            "y_boundary_respect_30d",
+            "边界侵犯投诉率",
         ]
         for term in terms:
             with self.subTest(term=term):
