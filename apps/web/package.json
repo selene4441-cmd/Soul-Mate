@@ -1,0 +1,37 @@
+{
+  "name": "tongpin-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "contracts": "node scripts/generate-contracts.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.85.5",
+    "next": "^15.5.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hook-form": "^7.62.0",
+    "zod": "^4.1.5",
+    "@hookform/resolvers": "^5.2.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

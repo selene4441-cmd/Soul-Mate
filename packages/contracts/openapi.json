@@ -1,0 +1,4017 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "同频 API",
+    "description": "同频 v0.1 API。浏览器端不会接收内部排序分数或原始模型特征。",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Api V1 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUser"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consents": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Get Consents",
+        "operationId": "get_consents_api_v1_consents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentResponse"
+                  },
+                  "title": "Response Get Consents Api V1 Consents Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Create Consent",
+        "operationId": "create_consent_api_v1_consents_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consents/{scope}": {
+      "delete": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Remove Consent",
+        "operationId": "remove_consent_api_v1_consents__scope__delete",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/questionnaire": {
+      "get": {
+        "tags": [
+          "questionnaire"
+        ],
+        "summary": "Questionnaire",
+        "operationId": "questionnaire_api_v1_questionnaire_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionnaireResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/questionnaire/submissions": {
+      "post": {
+        "tags": [
+          "questionnaire"
+        ],
+        "summary": "Create Submission",
+        "operationId": "create_submission_api_v1_questionnaire_submissions_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionnaireSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimResponse"
+                  },
+                  "title": "Response Create Submission Api V1 Questionnaire Submissions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims": {
+      "get": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Get Claims",
+        "operationId": "get_claims_api_v1_claims_get",
+        "parameters": [
+          {
+            "name": "include_expired",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Expired"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimResponse"
+                  },
+                  "title": "Response Get Claims Api V1 Claims Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claim_id}/feedback": {
+      "post": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Claim Feedback",
+        "operationId": "claim_feedback_api_v1_claims__claim_id__feedback_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimFeedbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claim_id}": {
+      "patch": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Edit Claim",
+        "operationId": "edit_claim_api_v1_claims__claim_id__patch",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "claims"
+        ],
+        "summary": "Remove Claim",
+        "operationId": "remove_claim_api_v1_claims__claim_id__delete",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations": {
+      "post": {
+        "tags": [
+          "matching"
+        ],
+        "summary": "Create Recommendations",
+        "operationId": "create_recommendations_api_v1_recommendations_post",
+        "parameters": [
+          {
+            "name": "X-Session-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Session-Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationBundle"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{candidate_id}": {
+      "get": {
+        "tags": [
+          "matching"
+        ],
+        "summary": "Get Recommendation",
+        "operationId": "get_recommendation_api_v1_recommendations__candidate_id__get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateLead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{candidate_id}/cues": {
+      "get": {
+        "tags": [
+          "matching"
+        ],
+        "summary": "Get Connection Cues",
+        "operationId": "get_connection_cues_api_v1_recommendations__candidate_id__cues_get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CueOption"
+                  },
+                  "title": "Response Get Connection Cues Api V1 Recommendations  Candidate Id  Cues Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{candidate_id}/actions": {
+      "post": {
+        "tags": [
+          "matching"
+        ],
+        "summary": "Create Action",
+        "operationId": "create_action_api_v1_recommendations__candidate_id__actions_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connection-requests": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Create Request",
+        "operationId": "create_request_api_v1_connection_requests_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionRequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Get Requests",
+        "operationId": "get_requests_api_v1_connection_requests_get",
+        "parameters": [
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(incoming|outgoing)$",
+              "default": "incoming",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "pending",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionRequestResponse"
+                  },
+                  "title": "Response Get Requests Api V1 Connection Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connection-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Get Request",
+        "operationId": "get_request_api_v1_connection_requests__request_id__get",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Cancel Request",
+        "operationId": "cancel_request_api_v1_connection_requests__request_id__delete",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connection-requests/{request_id}/accept": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Accept Request",
+        "operationId": "accept_request_api_v1_connection_requests__request_id__accept_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connection-requests/{request_id}/decline": {
+      "post": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "Decline Request",
+        "operationId": "decline_request_api_v1_connection_requests__request_id__decline_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Get Conversations",
+        "operationId": "get_conversations_api_v1_conversations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Conversations Api V1 Conversations Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Get Conversation",
+        "operationId": "get_conversation_api_v1_conversations__conversation_id__get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Get Messages",
+        "operationId": "get_messages_api_v1_conversations__conversation_id__messages_get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Create Message",
+        "operationId": "create_message_api_v1_conversations__conversation_id__messages_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/close": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Close",
+        "operationId": "close_api_v1_conversations__conversation_id__close_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationCloseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/read": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Read Messages",
+        "operationId": "read_messages_api_v1_conversations__conversation_id__read_post",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blocks": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Get Blocks",
+        "operationId": "get_blocks_api_v1_blocks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BlockResponse"
+                  },
+                  "title": "Response Get Blocks Api V1 Blocks Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Block User",
+        "operationId": "block_user_api_v1_blocks_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/{user_id}": {
+      "delete": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Unblock User",
+        "operationId": "unblock_user_api_v1_blocks__user_id__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Get Notifications",
+        "operationId": "get_notifications_api_v1_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Notifications Api V1 Notifications Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Read Notification",
+        "operationId": "read_notification_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Notification Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invitations": {
+      "post": {
+        "tags": [
+          "interaction"
+        ],
+        "summary": "Create Invitation",
+        "operationId": "create_invitation_api_v1_invitations_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/matches": {
+      "get": {
+        "tags": [
+          "interaction"
+        ],
+        "summary": "Matches",
+        "operationId": "matches_api_v1_matches_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MatchResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Matches Api V1 Matches Get"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/matches/{match_id}/messages": {
+      "get": {
+        "tags": [
+          "interaction"
+        ],
+        "summary": "Messages",
+        "operationId": "messages_api_v1_matches__match_id__messages_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageResponse"
+                  },
+                  "title": "Response Messages Api V1 Matches  Match Id  Messages Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "interaction"
+        ],
+        "summary": "Create Message",
+        "operationId": "create_message_api_v1_matches__match_id__messages_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Match Id"
+            }
+          },
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outcomes": {
+      "get": {
+        "tags": [
+          "outcomes"
+        ],
+        "summary": "Get Outcomes",
+        "operationId": "get_outcomes_api_v1_outcomes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutcomeResponse"
+                  },
+                  "title": "Response Get Outcomes Api V1 Outcomes Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "outcomes"
+        ],
+        "summary": "Create Outcome",
+        "operationId": "create_outcome_api_v1_outcomes_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutcomeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutcomeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/safety/reports": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Create Report",
+        "operationId": "create_report_api_v1_safety_reports_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafetyReportCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafetyEventResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/safety-events": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Safety Events",
+        "operationId": "safety_events_api_v1_admin_safety_events_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SafetyEventResponse"
+                  },
+                  "title": "Response Safety Events Api V1 Admin Safety Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/safety-events/{event_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Safety Event",
+        "operationId": "update_safety_event_api_v1_admin_safety_events__event_id__patch",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSafetyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafetyEventResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/versions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Versions",
+        "operationId": "versions_api_v1_admin_versions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response Versions Api V1 Admin Versions Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/privacy/me": {
+      "delete": {
+        "tags": [
+          "privacy"
+        ],
+        "summary": "Delete Me",
+        "operationId": "delete_me_api_v1_privacy_me_delete",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Delete Me Api V1 Privacy Me Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "more_like_this",
+              "not_for_me",
+              "saved",
+              "seen"
+            ],
+            "title": "Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "ActionRequest"
+      },
+      "AdminSafetyUpdate": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "dismissed"
+            ],
+            "title": "Status"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "AdminSafetyUpdate"
+      },
+      "BlockCreate": {
+        "properties": {
+          "blocked_user_id": {
+            "type": "string",
+            "title": "Blocked User Id"
+          },
+          "reason_private": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Private"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blocked_user_id"
+        ],
+        "title": "BlockCreate"
+      },
+      "BlockResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "blocked_user": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Blocked User"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "blocked_user",
+          "created_at",
+          "revoked_at"
+        ],
+        "title": "BlockResponse"
+      },
+      "CandidateLead": {
+        "properties": {
+          "recommendation_id": {
+            "type": "string",
+            "title": "Recommendation Id"
+          },
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "common_signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Common Signals"
+          },
+          "differences": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Differences"
+          },
+          "unknowns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unknowns"
+          },
+          "how_to_continue": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "How To Continue"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recommendation_id",
+          "candidate_id",
+          "display_name",
+          "headline",
+          "common_signals",
+          "differences",
+          "unknowns",
+          "how_to_continue",
+          "evidence_ids"
+        ],
+        "title": "CandidateLead"
+      },
+      "ClaimFeedbackRequest": {
+        "properties": {
+          "feedback": {
+            "type": "string",
+            "enum": [
+              "more_like_this",
+              "not_like_this",
+              "unsure"
+            ],
+            "title": "Feedback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feedback"
+        ],
+        "title": "ClaimFeedbackRequest"
+      },
+      "ClaimResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "dimension": {
+            "type": "string",
+            "title": "Dimension"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "claim_type": {
+            "type": "string",
+            "title": "Claim Type"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "sensitivity": {
+            "type": "string",
+            "title": "Sensitivity"
+          },
+          "user_editable": {
+            "type": "boolean",
+            "title": "User Editable"
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "title": "User Confirmed"
+          },
+          "correction_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "dimension",
+          "value",
+          "claim_type",
+          "evidence_ids",
+          "observed_at",
+          "expires_at",
+          "sensitivity",
+          "user_editable",
+          "user_confirmed",
+          "correction_state"
+        ],
+        "title": "ClaimResponse"
+      },
+      "ClaimUpdateRequest": {
+        "properties": {
+          "value": {
+            "title": "Value"
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "title": "User Confirmed",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "ClaimUpdateRequest"
+      },
+      "ConnectionDecisionRequest": {
+        "properties": {
+          "reason_private": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Private"
+          }
+        },
+        "type": "object",
+        "title": "ConnectionDecisionRequest"
+      },
+      "ConnectionRequestCreate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "recommendation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Id"
+          },
+          "recommendation_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Session Id"
+          },
+          "cue_type": {
+            "type": "string",
+            "enum": [
+              "common",
+              "difference",
+              "unknown",
+              "boundary",
+              "custom"
+            ],
+            "title": "Cue Type",
+            "default": "unknown"
+          },
+          "topic_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Text"
+          },
+          "personal_message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id"
+        ],
+        "title": "ConnectionRequestCreate"
+      },
+      "ConnectionRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "incoming",
+              "outgoing"
+            ],
+            "title": "Direction"
+          },
+          "other_user": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other User"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "cue_type": {
+            "type": "string",
+            "title": "Cue Type"
+          },
+          "topic_text": {
+            "type": "string",
+            "title": "Topic Text"
+          },
+          "personal_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personal Message"
+          },
+          "context_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Context Snapshot"
+          },
+          "recommendation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation Id"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "responded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responded At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "direction",
+          "other_user",
+          "status",
+          "cue_type",
+          "topic_text",
+          "personal_message",
+          "context_snapshot",
+          "recommendation_id",
+          "expires_at",
+          "responded_at",
+          "created_at"
+        ],
+        "title": "ConnectionRequestResponse"
+      },
+      "ConsentRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "matching:v1",
+              "conversation:v1",
+              "outcomes:v1"
+            ],
+            "title": "Scope"
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Purpose"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "purpose"
+        ],
+        "title": "ConsentRequest"
+      },
+      "ConsentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "granted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Granted At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "scope",
+          "version",
+          "purpose",
+          "granted_at",
+          "revoked_at"
+        ],
+        "title": "ConsentResponse"
+      },
+      "ConversationCloseRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "not_a_fit",
+              "taking_a_break",
+              "boundary",
+              "other"
+            ],
+            "title": "Reason",
+            "default": "other"
+          }
+        },
+        "type": "object",
+        "title": "ConversationCloseRequest"
+      },
+      "ConversationCueResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "cue_type": {
+            "type": "string",
+            "title": "Cue Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cue_type",
+          "text",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ConversationCueResponse"
+      },
+      "ConversationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "match_id": {
+            "type": "string",
+            "title": "Match Id"
+          },
+          "other_user": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other User"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "context_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Context Snapshot"
+          },
+          "active_cue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationCueResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opened_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Opened At"
+          },
+          "last_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message At"
+          },
+          "unread_count": {
+            "type": "integer",
+            "title": "Unread Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "match_id",
+          "other_user",
+          "status",
+          "context_snapshot",
+          "active_cue",
+          "opened_at",
+          "last_message_at",
+          "unread_count",
+          "created_at"
+        ],
+        "title": "ConversationResponse"
+      },
+      "CueOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "cue_type": {
+            "type": "string",
+            "enum": [
+              "common",
+              "difference",
+              "unknown",
+              "boundary",
+              "custom"
+            ],
+            "title": "Cue Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cue_type",
+          "text"
+        ],
+        "title": "CueOption"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InvitationRequest": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id"
+        ],
+        "title": "InvitationRequest"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "MatchResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "other_user": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other User"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "other_user",
+          "status",
+          "created_at"
+        ],
+        "title": "MatchResponse"
+      },
+      "MessageCreate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "client_message_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Client Message Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "cue_response"
+            ],
+            "title": "Kind",
+            "default": "text"
+          },
+          "reply_to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body",
+          "client_message_id"
+        ],
+        "title": "MessageCreate"
+      },
+      "MessagePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MessagePage"
+      },
+      "MessageResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "title": "Conversation Id"
+          },
+          "sender_id": {
+            "type": "string",
+            "title": "Sender Id"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "client_message_id": {
+            "type": "string",
+            "title": "Client Message Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "reply_to_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "conversation_id",
+          "sender_id",
+          "body",
+          "client_message_id",
+          "kind",
+          "reply_to_id",
+          "created_at",
+          "read_at"
+        ],
+        "title": "MessageResponse"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "entity_type",
+          "entity_id",
+          "state",
+          "scheduled_at",
+          "delivered_at",
+          "read_at",
+          "created_at"
+        ],
+        "title": "NotificationResponse"
+      },
+      "OutcomeCreate": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "match_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Id"
+          },
+          "window_days": {
+            "type": "integer",
+            "enum": [
+              7,
+              14,
+              30
+            ],
+            "title": "Window Days"
+          },
+          "satisfaction": {
+            "type": "string",
+            "enum": [
+              "positive",
+              "neutral",
+              "negative"
+            ],
+            "title": "Satisfaction"
+          },
+          "growth_alignment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "neutral",
+                  "negative"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth Alignment"
+          },
+          "boundary_respect": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "neutral",
+                  "negative"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary Respect"
+          },
+          "continued_contact": {
+            "type": "boolean",
+            "title": "Continued Contact"
+          },
+          "safety_event": {
+            "type": "boolean",
+            "title": "Safety Event",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "window_days",
+          "satisfaction",
+          "continued_contact"
+        ],
+        "title": "OutcomeCreate"
+      },
+      "OutcomeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "satisfaction": {
+            "type": "string",
+            "title": "Satisfaction"
+          },
+          "growth_alignment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Growth Alignment"
+          },
+          "boundary_respect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boundary Respect"
+          },
+          "continued_contact": {
+            "type": "boolean",
+            "title": "Continued Contact"
+          },
+          "good_outcome": {
+            "type": "boolean",
+            "title": "Good Outcome"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidate_id",
+          "window_days",
+          "satisfaction",
+          "growth_alignment",
+          "boundary_respect",
+          "continued_contact",
+          "good_outcome",
+          "submitted_at"
+        ],
+        "title": "OutcomeResponse"
+      },
+      "QuestionnaireOption": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "QuestionnaireOption"
+      },
+      "QuestionnaireQuestion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "dimension": {
+            "type": "string",
+            "title": "Dimension"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "help_text": {
+            "type": "string",
+            "title": "Help Text"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "single",
+              "multi"
+            ],
+            "title": "Kind"
+          },
+          "sensitivity": {
+            "type": "string",
+            "enum": [
+              "L1",
+              "L2"
+            ],
+            "title": "Sensitivity"
+          },
+          "claim_type": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "preference",
+              "state"
+            ],
+            "title": "Claim Type"
+          },
+          "stability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Stability"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionnaireOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "min_selections": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Selections"
+          },
+          "max_selections": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Selections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "section",
+          "dimension",
+          "prompt",
+          "help_text",
+          "kind",
+          "sensitivity",
+          "claim_type",
+          "stability",
+          "required",
+          "options"
+        ],
+        "title": "QuestionnaireQuestion"
+      },
+      "QuestionnaireResponse": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionnaireQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "estimated_minutes",
+          "questions"
+        ],
+        "title": "QuestionnaireResponse"
+      },
+      "QuestionnaireSubmission": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "answers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "answers"
+        ],
+        "title": "QuestionnaireSubmission"
+      },
+      "RecommendationBundle": {
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateLead"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at",
+          "session_id",
+          "items"
+        ],
+        "title": "RecommendationBundle"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Password"
+          },
+          "birth_year": {
+            "type": "integer",
+            "maximum": 2100.0,
+            "minimum": 1900.0,
+            "title": "Birth Year"
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Region"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "email",
+          "password",
+          "birth_year",
+          "region"
+        ],
+        "title": "RegisterRequest"
+      },
+      "SafetyEventResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reporter_id": {
+            "type": "string",
+            "title": "Reporter Id"
+          },
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reporter_id",
+          "subject_id",
+          "conversation_id",
+          "message_id",
+          "event_type",
+          "severity",
+          "status",
+          "created_at",
+          "reviewed_at"
+        ],
+        "title": "SafetyEventResponse"
+      },
+      "SafetyReportCreate": {
+        "properties": {
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "harassment",
+              "boundary_violation",
+              "fraud",
+              "other"
+            ],
+            "title": "Event Type"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "title": "Severity"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_id",
+          "event_type",
+          "severity"
+        ],
+        "title": "SafetyReportCreate"
+      },
+      "SessionResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/SessionUser"
+          },
+          "csrf_token": {
+            "type": "string",
+            "title": "Csrf Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "csrf_token"
+        ],
+        "title": "SessionResponse"
+      },
+      "SessionUser": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "birth_year": {
+            "type": "integer",
+            "title": "Birth Year"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "email",
+          "birth_year",
+          "region",
+          "role",
+          "status"
+        ],
+        "title": "SessionUser"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
