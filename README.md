@@ -39,6 +39,17 @@ infra/deploy/                 容器构建文件
 tests/                        后端集成、契约和文档回归测试
 ```
 
+## Codex Skill
+
+仓库根目录提供自包含单文件 [`tongpin.skill.md`](tongpin.skill.md)，适合直接分享；Codex 自动发现所需的标准技能目录是 [`.agents/skills/tongpin/SKILL.md`](.agents/skills/tongpin/SKILL.md)。在仓库中打开 Codex 后，可以显式调用：
+
+```text
+$tongpin 启动同频并带我走完一次完整流程
+```
+
+技能会先定位仓库，再按用户目标选择启动、演示、检查或验证模式。它不会把产品简化成文档问答，而是操作真实的 FastAPI、Next.js、SQLite/PostgreSQL 和测试流程，并强制保留同意、隐私、安全否决和无确定性标签等产品约束。
+
+详细操作步骤位于 [`.agents/skills/tongpin/references/operations.md`](.agents/skills/tongpin/references/operations.md)。如果要把技能安装到个人 Codex 技能目录，可复制整个 `.agents/skills/tongpin` 文件夹到 `$CODEX_HOME/skills/`；在仓库外调用时，技能会要求提供本地仓库路径。
 ## 在 GitHub 中一键使用
 
 推荐使用 GitHub Codespaces：点击仓库顶部 README 的 **Open in GitHub Codespaces**，等待环境初始化完成，然后打开自动转发的 `3000` 端口。

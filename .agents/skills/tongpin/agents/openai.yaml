@@ -1,0 +1,7 @@
+interface:
+  display_name: "同频产品助手"
+  short_description: "Run and operate the Tongpin relationship-signal product"
+  default_prompt: "Use $tongpin to start the Tongpin product and guide me through the complete flow."
+
+policy:
+  allow_implicit_invocation: true
