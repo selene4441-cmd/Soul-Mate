@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    String,
     Text,
     func,
 )
@@ -28,6 +29,15 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     consent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     consent_scopes: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    region: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    role: Mapped[str] = mapped_column(Text, nullable=False, default="user")
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
+    password_salt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

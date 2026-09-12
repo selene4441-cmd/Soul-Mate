@@ -23,5 +23,12 @@ class Settings(BaseSettings):
     # Comma-separated skill ids; later skills override earlier ones.
     active_skills: str = ""
 
+    # Auth / Cookies
+    session_ttl_seconds: int = 60 * 60 * 24 * 14  # 14 days
+    cookie_secure: bool = False
+    cookie_samesite: str = "lax"  # "lax" | "strict" | "none"
+    session_cookie_name: str = "tongpin_session"
+    csrf_cookie_name: str = "tongpin_csrf"
+
 
 settings = Settings()
