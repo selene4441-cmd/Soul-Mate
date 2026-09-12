@@ -10,10 +10,33 @@ cd <repo>\soulmate\demo
 .\start.ps1
 ```
 
-脚本会依次：迁移数据库 → 灌演示数据 → 起后端（`127.0.0.1:8000`）→ 装前端依赖（首次）→ 起前端（`127.0.0.1:3000`）→ 打开浏览器。
+脚本会依次：迁移数据库 → 灌演示数据 → 选一个空闲端口起后端（默认 8010，见下）→ 装前端依赖（首次）→ 起前端（`127.0.0.1:3000`）→ 打开浏览器。
 按 `Ctrl+C` 会同时结束后端。
 
 > 首次运行需要 `npm install`（几分钟）。之后启动大约 10 秒。
+
+## 截图（四种界面状态）
+
+| 状态 | 截图 |
+|---|---|
+| 登录页（一键切换四个演示账号） | ![登录](screenshots/01-login.png) |
+| `MATCHING` — 可能接近的人 + 共同点/差异/还不确定 | ![推荐](screenshots/02-matching.png) |
+| `CHAT` — 已建立联系 + How I See You | ![聊天](screenshots/03-chat.png) |
+| `SELF_PROFILE_READY` — Your Story | ![自述](screenshots/04-story.png) |
+| `EXPLORING` — 授权 + 问卷 | ![问卷](screenshots/05-questionnaire.png) |
+
+## 深链接一键进入某个状态
+
+调试或演示时可以直接给链接，不用手动点：
+
+```
+http://127.0.0.1:3000/?login=demo1@example.com   → MATCHING
+http://127.0.0.1:3000/?login=demo2@example.com   → CHAT
+http://127.0.0.1:3000/?login=demo3@example.com   → SELF_PROFILE_READY
+http://127.0.0.1:3000/?login=demo4@example.com   → EXPLORING
+```
+
+（只对上面五个内置演示账号生效，其它邮箱参数会被忽略。）
 
 ## 演示账号
 
