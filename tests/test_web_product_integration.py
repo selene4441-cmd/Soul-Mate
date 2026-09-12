@@ -14,6 +14,7 @@ os.environ["SEED_DEMO_DATA"] = "true"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ["COOKIE_SECURE"] = "false"
 
+from app.api.websocket import _origin_allowed  # noqa: E402
 from app.database import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import BASE_ANSWERS  # noqa: E402
@@ -246,3 +247,8 @@ def test_deletion_removes_claims_and_revokes_session(client: TestClient):
     assert deletion.json()["status"] == "completed"
     after = client.get("/api/v1/auth/me")
     assert after.status_code == 401
+
+
+def test_codespaces_websocket_origin_is_allowed_only_in_development():
+    assert _origin_allowed("https://example-3000.app.github.dev")
+    assert not _origin_allowed("https://example.invalid")

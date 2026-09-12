@@ -2,6 +2,8 @@
 
 “同频”是一个响应式 Web 关系匹配产品。它不把关系结果压缩成确定性的数字或人格标签，而是把共同点、差异和未知信息放在一起，让用户通过具体相处继续确认。
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/selene4441-cmd/Soul-Mate)
+
 本仓库的产品和数据约束来自：
 
 - `docs/matching-metrics-v0.1.md`
@@ -33,6 +35,25 @@ infra/deploy/                 容器构建文件
 tests/                        后端集成、契约和文档回归测试
 ```
 
+## 在 GitHub 中一键使用
+
+推荐使用 GitHub Codespaces：点击仓库顶部 README 的 **Open in GitHub Codespaces**，等待环境初始化完成，然后打开自动转发的 `3000` 端口。
+
+每个 Codespace 都拥有独立的 SQLite 数据库和本地种子候选人，适合同伴立即体验完整流程。它不会自动与访问你仓库的其他人共享数据；如果希望多人访问同一套数据，需要把 Docker Compose 部署到一台持续运行的云主机、容器平台或内网服务器。
+
+也可以在本机用一条命令启动前后端：
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
+```
+
+```bash
+# macOS / Linux / Git Bash
+bash scripts/start-local.sh
+```
+
+脚本会创建虚拟环境、安装依赖、执行迁移，并启动 `http://127.0.0.1:3000`。详细说明见 `docs/github-usage.md`。
 ## 本地运行
 
 需要 Python 3.12、Node.js 22+ 和 pnpm 11。

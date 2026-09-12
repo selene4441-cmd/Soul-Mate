@@ -191,3 +191,5 @@ apps/web/.next/
 apps/web/node_modules/
 *.db
 *.tsbuildinfo
+.devcontainer/logs/
+.devcontainer/*.pid

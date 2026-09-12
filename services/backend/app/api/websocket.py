@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
@@ -27,6 +28,9 @@ def _origin_allowed(origin: str | None) -> bool:
     allowed = {get_settings().app_origin}
     if get_settings().environment != "production":
         allowed.update({"http://localhost:3000", "http://127.0.0.1:3000"})
+        hostname = (urlparse(origin).hostname or "").lower()
+        if hostname.endswith(".app.github.dev"):
+            return True
     return origin in allowed
 
 
