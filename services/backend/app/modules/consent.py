@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.errors import DomainError
-from app.models import Consent, User
+from app.models import Consent, Conversation, ConversationMember, Match, User
 from app.modules.audit import record_audit
+from app.modules.outbox import emit_event
 from app.schemas import ConsentRequest, ConsentResponse
 
 ALLOWED_SCOPES = {"matching:v1", "conversation:v1", "outcomes:v1"}
@@ -70,7 +71,39 @@ def revoke_consent(db: Session, user: User, scope: str) -> ConsentResponse:
     )
     if not consent:
         raise DomainError("CONSENT_NOT_FOUND", "未找到有效授权", status_code=404)
-    consent.revoked_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    consent.revoked_at = now
+    if scope == "conversation:v1":
+        memberships = db.scalars(
+            select(ConversationMember).where(ConversationMember.user_id == user.id)
+        ).all()
+        for membership in memberships:
+            conversation = db.get(Conversation, membership.conversation_id)
+            if not conversation or conversation.status != "active":
+                continue
+            conversation.status = "closed"
+            conversation.closed_at = now
+            match = db.get(Match, conversation.match_id)
+            if match and match.status == "active":
+                match.status = "closed"
+                match.closed_at = now
+                match.closed_by = user.id
+                match.close_reason = "consent_revoked"
+            for member in db.scalars(
+                select(ConversationMember).where(
+                    ConversationMember.conversation_id == conversation.id
+                )
+            ).all():
+                member.exited_at = member.exited_at or now
+            emit_event(
+                db,
+                topic="conversation.closed",
+                payload={
+                    "conversation_id": conversation.id,
+                    "closed_by": user.id,
+                    "reason": "consent_revoked",
+                },
+            )
     record_audit(
         db,
         actor_id=user.id,

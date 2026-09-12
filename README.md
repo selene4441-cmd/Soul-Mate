@@ -15,11 +15,13 @@
 
 - Next.js + TypeScript 响应式用户端
 - FastAPI + Pydantic + SQLAlchemy 2 模块化单体 API
-- PostgreSQL + pgvector 数据契约和 Alembic 初始迁移
+- PostgreSQL + pgvector 数据契约和版本化 Alembic 迁移
 - 同意范围、撤回、Cookie 会话、CSRF、速率限制和安全响应头
 - Evidence 与可修正 Claim 生命周期
 - 硬约束、安全否决、双人关系信号、探索位置和可追溯解释
-- 邀请、站内消息、WebSocket 更新与轮询降级
+- 双向连接请求、议题式开场、接受后创建会话
+- 文字消息幂等、游标补拉、WebSocket 更新与轮询降级
+- 结束交流、拉黑、举报关联、站内通知和 Outbox 分发
 - 7/14/30 天结果反馈
 - 隐私删除、无正文审计墓碑和管理审核接口骨架
 - PostgreSQL、Redis、Celery、FastAPI、Next.js 的 Docker Compose 基础设施
@@ -29,7 +31,7 @@
 ```text
 apps/web/                     Next.js 用户端与管理端页面
 services/backend/app/api/     /api/v1 路由与 WebSocket
-services/backend/app/modules/ Consent、Claims、Matching、Interaction 等领域模块
+services/backend/app/modules/ Consent、Claims、Matching、Connections、Conversations、Safety 等领域模块
 services/backend/migrations/  Alembic 迁移
 packages/contracts/           生成式客户端预留目录
 infra/compose/                本地依赖编排

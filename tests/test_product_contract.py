@@ -34,7 +34,13 @@ def test_core_data_tables_are_declared():
         "impressions",
         "actions",
         "matches",
+        "connection_requests",
         "conversations",
+        "conversation_members",
+        "conversation_cues",
+        "messages",
+        "blocks",
+        "notifications",
         "outcomes",
         "safety_events",
         "model_versions",
@@ -82,9 +88,45 @@ def test_initial_migration_enables_pgvector_and_all_tables():
         assert re.search(rf'op\.create_table\(\s*"{table}"', text)
 
 
+def test_conversation_migration_adds_lifecycle_and_safety_tables():
+    migration = (
+        BACKEND
+        / "migrations"
+        / "versions"
+        / "7c9b1f2a4d6e_add_conversation_v0_1.py"
+    )
+    text = migration.read_text(encoding="utf-8")
+    for table in (
+        "connection_requests",
+        "conversation_members",
+        "conversation_cues",
+        "blocks",
+        "notifications",
+    ):
+        assert re.search(rf'op\.create_table\(\s*"{table}"', text)
+    assert "uq_connection_request_pending_pair" in text
+    assert "uq_block_active_pair" in text
+
+
+def test_conversation_domain_enforces_mutual_consent_and_blocking():
+    messages = (BACKEND / "app" / "modules" / "messages.py").read_text(encoding="utf-8")
+    blocks = (BACKEND / "app" / "modules" / "blocks.py").read_text(encoding="utf-8")
+    connections = (BACKEND / "app" / "modules" / "connections.py").read_text(encoding="utf-8")
+    for required in (
+        'has_active_consent(db, member_id, "conversation:v1")',
+        "has_active_block",
+        "client_message_id",
+        "publish_event",
+    ):
+        assert required in messages
+    assert "conversation.status = \"blocked\"" in blocks
+    assert 'ConnectionRequest.status == "pending"' in connections
+    assert "connection_request_cooldown_days" in connections
+
+
 def test_compose_declares_required_local_services():
     compose = (ROOT / "infra" / "compose" / "docker-compose.yml").read_text(encoding="utf-8")
-    for service in ("postgres:", "redis:", "backend:", "worker:", "web:"):
+    for service in ("postgres:", "redis:", "backend:", "worker:", "beat:", "web:"):
         assert service in compose
     assert "pgvector/pgvector" in compose
 
@@ -100,6 +142,12 @@ def test_openapi_contract_exposes_required_v1_flows():
         "/api/v1/consents",
         "/api/v1/questionnaire/submissions",
         "/api/v1/recommendations",
+        "/api/v1/connection-requests",
+        "/api/v1/connection-requests/{request_id}/accept",
+        "/api/v1/conversations",
+        "/api/v1/conversations/{conversation_id}/messages",
+        "/api/v1/blocks",
+        "/api/v1/notifications",
         "/api/v1/invitations",
         "/api/v1/outcomes",
         "/api/v1/safety/reports",

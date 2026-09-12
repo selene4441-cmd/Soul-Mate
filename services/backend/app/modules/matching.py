@@ -315,7 +315,6 @@ def generate_recommendations(
         select(User).where(
             User.id != viewer.id,
             User.status == "active",
-            User.is_seed.is_(True),
         )
     ).all()
     eligible: list[tuple[float, User, dict[str, Claim], float, list[str]]] = []
@@ -375,7 +374,7 @@ def get_candidate_lead(db: Session, viewer: User, candidate_id: str) -> Candidat
     if not has_active_consent(db, viewer.id, "matching:v1"):
         raise DomainError("CONSENT_REQUIRED", "需要先授权匹配用途", status_code=403)
     candidate = db.get(User, candidate_id)
-    if not candidate or candidate.status != "active" or candidate.is_seed is not True:
+    if not candidate or candidate.status != "active":
         raise DomainError("CANDIDATE_NOT_FOUND", "未找到该候选人", status_code=404)
     viewer_claims = _claim_maps(db, viewer.id)
     candidate_claims = _claim_maps(db, candidate.id)

@@ -6,9 +6,13 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Block,
     Claim,
+    ConnectionRequest,
     Consent,
     Conversation,
+    ConversationCue,
+    ConversationMember,
     DeletionRequest,
     Evidence,
     FeatureSnapshot,
@@ -16,6 +20,7 @@ from app.models import (
     Impression,
     Match,
     Message,
+    Notification,
     Outcome,
     PairFeature,
     RawDocument,
@@ -44,8 +49,26 @@ def delete_user_data(db: Session, user: User) -> DeletionRequest:
         )
     if conversation_ids:
         db.execute(delete(Message).where(Message.conversation_id.in_(conversation_ids)))
+        db.execute(
+            delete(ConversationCue).where(ConversationCue.conversation_id.in_(conversation_ids))
+        )
+        db.execute(
+            delete(ConversationMember).where(
+                ConversationMember.conversation_id.in_(conversation_ids)
+            )
+        )
         db.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
 
+    db.execute(
+        delete(ConnectionRequest).where(
+            or_(
+                ConnectionRequest.requester_id == user.id,
+                ConnectionRequest.recipient_id == user.id,
+            )
+        )
+    )
+    db.execute(delete(Block).where(Block.blocker_id == user.id))
+    db.execute(delete(Notification).where(Notification.user_id == user.id))
     db.execute(delete(Outcome).where(Outcome.user_id == user.id))
     db.execute(delete(SafetyEvent).where(SafetyEvent.reporter_id == user.id))
     if match_ids:

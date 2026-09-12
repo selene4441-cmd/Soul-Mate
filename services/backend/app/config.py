@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     max_claim_confidence_age_days: int = 90
     claim_retention_days: int = Field(default=365, ge=1)
     raw_document_retention_days: int = Field(default=180, ge=1)
+    connection_request_ttl_days: int = Field(default=7, ge=1, le=30)
+    connection_request_cooldown_days: int = Field(default=30, ge=0, le=365)
+    outbox_worker_id: str = "api"
+    realtime_broker_enabled: bool = False
 
 
 @lru_cache

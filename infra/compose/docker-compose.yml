@@ -33,6 +33,7 @@ services:
       DATABASE_URL: postgresql+psycopg://tongpin:tongpin@postgres:5432/tongpin
       REDIS_URL: redis://redis:6379/0
       COOKIE_SECURE: "true"
+      REALTIME_BROKER_ENABLED: "true"
       SEED_DEMO_DATA: "true"
       AUTO_CREATE_DB: "false"
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -51,7 +52,23 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://tongpin:tongpin@postgres:5432/tongpin
       REDIS_URL: redis://redis:6379/0
+      REALTIME_BROKER_ENABLED: "true"
     command: ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "-l", "INFO"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: ../..
+      dockerfile: infra/deploy/backend.Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://tongpin:tongpin@postgres:5432/tongpin
+      REDIS_URL: redis://redis:6379/0
+      REALTIME_BROKER_ENABLED: "true"
+    command: ["celery", "-A", "app.workers.celery_app:celery_app", "beat", "-l", "INFO"]
     depends_on:
       postgres:
         condition: service_healthy

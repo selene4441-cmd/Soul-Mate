@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, Header
 from app.dependencies import CsrfProtected, CurrentUser, DbSession, require_consent
 from app.models import User
 from app.modules.audit import execute_idempotent
+from app.modules.connections import connection_cues
 from app.modules.matching import generate_recommendations, get_candidate_lead, record_action
-from app.schemas import ActionRequest, CandidateLead, RecommendationBundle
+from app.schemas import ActionRequest, CandidateLead, CueOption, RecommendationBundle
 
 router = APIRouter(prefix="/recommendations", tags=["matching"])
 
@@ -38,6 +39,15 @@ def get_recommendation(
     db: DbSession,
 ) -> CandidateLead:
     return get_candidate_lead(db, user, candidate_id)
+
+
+@router.get("/{candidate_id}/cues", response_model=list[CueOption])
+def get_connection_cues(
+    candidate_id: str,
+    user: Annotated[User, Depends(require_consent("matching:v1"))],
+    db: DbSession,
+) -> list[CueOption]:
+    return connection_cues(db, user, candidate_id)
 
 
 @router.post("/{candidate_id}/actions", status_code=204)

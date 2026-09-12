@@ -13,10 +13,12 @@ os.environ["AUTO_CREATE_DB"] = "true"
 os.environ["SEED_DEMO_DATA"] = "true"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ["COOKIE_SECURE"] = "false"
+os.environ["REALTIME_BROKER_ENABLED"] = "false"
 
 from app.api.websocket import _origin_allowed  # noqa: E402
-from app.database import engine  # noqa: E402
+from app.database import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models import User  # noqa: E402
 from app.seed import BASE_ANSWERS  # noqa: E402
 
 
@@ -44,6 +46,15 @@ def _register(client: TestClient, email: str) -> dict:
         },
     )
     assert response.status_code == 201, response.text
+    return response.json()
+
+
+def _login(client: TestClient, email: str, password: str = "correct-horse-battery-staple") -> dict:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert response.status_code == 200, response.text
     return response.json()
 
 
@@ -114,25 +125,55 @@ def test_complete_product_flow_without_internal_scores(client: TestClient):
     detail = client.get(f"/api/v1/recommendations/{first['candidate_id']}")
     assert detail.status_code == 200, detail.text
 
-    invitation = client.post(
-        "/api/v1/invitations",
-        json={"candidate_id": first["candidate_id"], "message": "想先从时间安排聊起。"},
-        headers={**_csrf(client), "Idempotency-Key": "invitation-1"},
-    )
-    assert invitation.status_code == 200, invitation.text
-    match = invitation.json()
-    assert match["status"] == "connected"
+    cues = client.get(f"/api/v1/recommendations/{first['candidate_id']}/cues")
+    assert cues.status_code == 200, cues.text
+    assert cues.json()
+    assert "ranking_score" not in cues.text
 
+    invitation = client.post(
+        "/api/v1/connection-requests",
+        json={
+            "candidate_id": first["candidate_id"],
+            "topic_text": cues.json()[0]["text"],
+            "cue_type": cues.json()[0]["cue_type"],
+            "personal_message": "想先从时间安排聊起。",
+        },
+        headers={**_csrf(client), "Idempotency-Key": "connection-request-1"},
+    )
+    assert invitation.status_code == 201, invitation.text
+    connection_request = invitation.json()
+    assert connection_request["status"] == "pending"
+    assert connection_request["topic_text"] == cues.json()[0]["text"]
+
+    with SessionLocal() as db:
+        candidate = db.get(User, first["candidate_id"])
+        assert candidate is not None
+        candidate_email = candidate.email
+
+    _login(client, candidate_email, "disabled-seed-account")
+    incoming = client.get("/api/v1/connection-requests?direction=incoming&status=pending")
+    assert incoming.status_code == 200
+    assert [item["id"] for item in incoming.json()] == [connection_request["id"]]
+    accepted = client.post(
+        f"/api/v1/connection-requests/{connection_request['id']}/accept",
+        headers={**_csrf(client), "Idempotency-Key": "connection-accept-1"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    conversation = accepted.json()
+    assert conversation["status"] == "active"
+    assert conversation["active_cue"]["text"] == cues.json()[0]["text"]
+
+    _login(client, "flow@example.com")
     message = client.post(
-        f"/api/v1/matches/{match['id']}/messages",
+        f"/api/v1/conversations/{conversation['id']}/messages",
         json={"body": "你好，想先了解一下彼此对周末节奏的安排。", "client_message_id": "msg-1"},
         headers=_csrf(client),
     )
     assert message.status_code == 201, message.text
-    messages = client.get(f"/api/v1/matches/{match['id']}/messages")
-    assert [item["body"] for item in messages.json()] == [message.json()["body"]]
+    messages = client.get(f"/api/v1/conversations/{conversation['id']}/messages")
+    assert [item["body"] for item in messages.json()["items"]] == [message.json()["body"]]
 
-    with client.websocket_connect(f"/api/v1/ws/matches/{match['id']}") as websocket:
+    with client.websocket_connect(f"/api/v1/ws/conversations/{conversation['id']}") as websocket:
         snapshot = websocket.receive_json()
         assert snapshot["type"] == "messages.snapshot"
         websocket.send_json(
@@ -150,7 +191,7 @@ def test_complete_product_flow_without_internal_scores(client: TestClient):
         "/api/v1/outcomes",
         json={
             "candidate_id": first["candidate_id"],
-            "match_id": match["id"],
+            "match_id": conversation["match_id"],
             "window_days": 14,
             "satisfaction": "positive",
             "continued_contact": True,
@@ -252,3 +293,150 @@ def test_deletion_removes_claims_and_revokes_session(client: TestClient):
 def test_codespaces_websocket_origin_is_allowed_only_in_development():
     assert _origin_allowed("https://example-3000.app.github.dev")
     assert not _origin_allowed("https://example.invalid")
+
+
+
+def _prepare_seed_conversation(
+    client: TestClient,
+    email: str,
+    prefix: str,
+) -> tuple[str, dict]:
+    _register(client, email)
+    _grant_all(client)
+    questionnaire = client.get("/api/v1/questionnaire").json()
+    submitted = client.post(
+        "/api/v1/questionnaire/submissions",
+        json={"version": questionnaire["version"], "answers": deepcopy(BASE_ANSWERS)},
+        headers=_csrf(client),
+    )
+    assert submitted.status_code == 200, submitted.text
+    recommendations = client.post(
+        "/api/v1/recommendations",
+        headers={
+            **_csrf(client),
+            "Idempotency-Key": f"{prefix}-recommendation",
+            "X-Session-Id": f"{prefix}-session",
+        },
+    ).json()
+    with SessionLocal() as db:
+        candidate = next(
+            db.get(User, item["candidate_id"])
+            for item in recommendations["items"]
+            if db.get(User, item["candidate_id"]).is_seed
+        )
+    assert candidate is not None
+    cues = client.get(f"/api/v1/recommendations/{candidate.id}/cues").json()
+    request_response = client.post(
+        "/api/v1/connection-requests",
+        json={
+            "candidate_id": candidate.id,
+            "topic_text": cues[0]["text"],
+            "cue_type": cues[0]["cue_type"],
+            "personal_message": "希望从具体情境开始认识。",
+        },
+        headers={**_csrf(client), "Idempotency-Key": f"{prefix}-request"},
+    )
+    assert request_response.status_code == 201, request_response.text
+    request = request_response.json()
+    _login(client, candidate.email, "disabled-seed-account")
+    accepted = client.post(
+        f"/api/v1/connection-requests/{request['id']}/accept",
+        headers={**_csrf(client), "Idempotency-Key": f"{prefix}-accept"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    _login(client, email)
+    return candidate.id, accepted.json()
+
+def test_block_stops_conversation_and_report_can_reference_message(client: TestClient):
+    candidate_id, conversation = _prepare_seed_conversation(client, "block@example.com", "block")
+    sent = client.post(
+        f"/api/v1/conversations/{conversation['id']}/messages",
+        json={"body": "这是一条用于安全测试的消息。", "client_message_id": "block-message-1"},
+        headers=_csrf(client),
+    )
+    assert sent.status_code == 201, sent.text
+    report = client.post(
+        "/api/v1/safety/reports",
+        json={
+            "subject_id": candidate_id,
+            "conversation_id": conversation["id"],
+            "message_id": sent.json()["id"],
+            "event_type": "boundary_violation",
+            "severity": "high",
+            "details": "测试举报引用，不写入普通日志。",
+        },
+        headers=_csrf(client),
+    )
+    assert report.status_code == 201, report.text
+    assert report.json()["conversation_id"] == conversation["id"]
+    assert report.json()["message_id"] == sent.json()["id"]
+
+    blocked = client.post(
+        "/api/v1/blocks",
+        json={"blocked_user_id": candidate_id, "reason_private": "停止联系"},
+        headers=_csrf(client),
+    )
+    assert blocked.status_code == 201, blocked.text
+    rejected = client.post(
+        f"/api/v1/conversations/{conversation['id']}/messages",
+        json={"body": "这条不应发送。", "client_message_id": "block-message-2"},
+        headers=_csrf(client),
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "CONVERSATION_CLOSED"
+
+def test_conversation_consent_revocation_blocks_future_messages(client: TestClient):
+    _candidate_id, conversation = _prepare_seed_conversation(
+        client, "consent-chat@example.com", "consent-chat"
+    )
+    revoked = client.delete("/api/v1/consents/conversation:v1", headers=_csrf(client))
+    assert revoked.status_code == 200, revoked.text
+    rejected = client.post(
+        f"/api/v1/conversations/{conversation['id']}/messages",
+        json={"body": "撤回授权后不应发送。", "client_message_id": "consent-revoked-message"},
+        headers=_csrf(client),
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "CONVERSATION_CLOSED"
+
+
+def test_decline_enforces_cooldown_for_repeated_requests(client: TestClient):
+    _register(client, "decline-owner@example.com")
+    _grant_all(client)
+    questionnaire = client.get("/api/v1/questionnaire").json()
+    client.post(
+        "/api/v1/questionnaire/submissions",
+        json={"version": questionnaire["version"], "answers": deepcopy(BASE_ANSWERS)},
+        headers=_csrf(client),
+    )
+    recommendations = client.post(
+        "/api/v1/recommendations",
+        headers={**_csrf(client), "Idempotency-Key": "decline-recommendation"},
+    ).json()
+    with SessionLocal() as db:
+        candidate = next(
+            db.get(User, item["candidate_id"])
+            for item in recommendations["items"]
+            if db.get(User, item["candidate_id"]).is_seed
+        )
+    first = client.post(
+        "/api/v1/connection-requests",
+        json={"candidate_id": candidate.id, "topic_text": "先确认一个具体情境。"},
+        headers={**_csrf(client), "Idempotency-Key": "decline-request-1"},
+    )
+    assert first.status_code == 201, first.text
+    _login(client, candidate.email, "disabled-seed-account")
+    declined = client.post(
+        f"/api/v1/connection-requests/{first.json()['id']}/decline",
+        json={"reason_private": "暂不合适"},
+        headers=_csrf(client),
+    )
+    assert declined.status_code == 200, declined.text
+    _login(client, "decline-owner@example.com")
+    repeated = client.post(
+        "/api/v1/connection-requests",
+        json={"candidate_id": candidate.id, "topic_text": "再次尝试。"},
+        headers={**_csrf(client), "Idempotency-Key": "decline-request-2"},
+    )
+    assert repeated.status_code == 409
+    assert repeated.json()["code"] == "CONNECTION_REQUEST_COOLDOWN"

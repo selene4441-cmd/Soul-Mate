@@ -10,10 +10,12 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +28,11 @@ def new_id() -> str:
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def pair_key_for(user_a_id: str, user_b_id: str) -> str:
+    left, right = sorted((user_a_id, user_b_id))
+    return f"{left}:{right}"
 
 
 class TimestampMixin:
@@ -191,14 +198,50 @@ class Match(Base):
     __tablename__ = "matches"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    pair_key: Mapped[str] = mapped_column(String(65), unique=True, index=True)
     user_a_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     user_b_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    status: Mapped[str] = mapped_column(String(30), default="invited", index=True)
+    status: Mapped[str] = mapped_column(String(30), default="active", index=True)
     invited_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    close_reason: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class ConnectionRequest(TimestampMixin, Base):
+    __tablename__ = "connection_requests"
+    __table_args__ = (
+        Index(
+            "uq_connection_request_pending_pair",
+            "pair_key",
+            unique=True,
+            sqlite_where=text("status = 'pending'"),
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    pair_key: Mapped[str] = mapped_column(String(65), index=True)
+    requester_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    recipient_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    recommendation_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    recommendation_session_id: Mapped[str | None] = mapped_column(String(64))
+    source_feature_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    source_versions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    cue_type: Mapped[str] = mapped_column(String(20), default="unknown")
+    topic_text: Mapped[str] = mapped_column(String(300))
+    personal_message: Mapped[str | None] = mapped_column(String(300))
+    context_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    policy_version: Mapped[str] = mapped_column(String(40))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decline_reason_private: Mapped[str | None] = mapped_column(String(300))
 
 
 class Conversation(Base):
@@ -206,7 +249,45 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     match_id: Mapped[str] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    context_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ConversationMember(TimestampMixin, Base):
+    __tablename__ = "conversation_members"
+
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notification_state: Mapped[str] = mapped_column(String(20), default="normal")
+    exited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConversationCue(TimestampMixin, Base):
+    __tablename__ = "conversation_cues"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    connection_request_id: Mapped[str | None] = mapped_column(
+        ForeignKey("connection_requests.id", ondelete="SET NULL")
+    )
+    cue_type: Mapped[str] = mapped_column(String(20))
+    text: Mapped[str] = mapped_column(String(300))
+    source_feature_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    source_versions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    created_by: Mapped[str] = mapped_column(String(20), default="system")
 
 
 class Message(Base):
@@ -219,6 +300,12 @@ class Message(Base):
     sender_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     body: Mapped[str] = mapped_column(Text)
     client_message_id: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(20), default="text")
+    reply_to_id: Mapped[str | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL")
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    moderation_status: Mapped[str] = mapped_column(String(20), default="normal")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )
@@ -258,7 +345,14 @@ class SafetyEvent(Base):
     event_type: Mapped[str] = mapped_column(String(50), index=True)
     severity: Mapped[str] = mapped_column(String(20), default="high", index=True)
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), index=True
+    )
+    message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), index=True
+    )
     details_reference: Mapped[str | None] = mapped_column(String(255))
+    details_hash: Mapped[str | None] = mapped_column(String(64))
     reviewer_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -286,12 +380,54 @@ class OutboxEvent(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    event_key: Mapped[str] = mapped_column(String(80), unique=True, default=new_id)
     topic: Mapped[str] = mapped_column(String(80), index=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(80))
+    last_error: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Notification(TimestampMixin, Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(40), index=True)
+    entity_type: Mapped[str] = mapped_column(String(40))
+    entity_id: Mapped[str] = mapped_column(String(32), index=True)
+    dedupe_key: Mapped[str] = mapped_column(String(100), unique=True)
+    state: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Block(Base):
+    __tablename__ = "blocks"
+    __table_args__ = (
+        Index(
+            "uq_block_active_pair",
+            "blocker_id",
+            "blocked_id",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    blocker_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    blocked_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    pair_key: Mapped[str] = mapped_column(String(65), index=True)
+    reason_private: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class IdempotencyKey(Base):

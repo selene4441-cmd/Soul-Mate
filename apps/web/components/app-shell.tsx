@@ -7,6 +7,7 @@ import { useMe } from "@/lib/auth";
 
 const NAV = [
   { href: "/home", label: "关系线索" },
+  { href: "/requests", label: "连接请求" },
   { href: "/messages", label: "交流" },
   { href: "/outcomes", label: "结果反馈" },
   { href: "/privacy", label: "数据与授权" },
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="shell py-8 sm:py-12">{children}</main>
-      <nav className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-4 rounded-3xl border border-[var(--line)] bg-[rgba(255,253,247,0.96)] p-2 shadow-lg backdrop-blur md:hidden">
+      <nav className="fixed inset-x-3 bottom-3 z-20 grid grid-cols-5 rounded-3xl border border-[var(--line)] bg-[rgba(255,253,247,0.96)] p-2 shadow-lg backdrop-blur md:hidden">
         {NAV.map((item) => (
           <Link
             key={item.href}

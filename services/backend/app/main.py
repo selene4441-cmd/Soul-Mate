@@ -14,6 +14,7 @@ from app.api.router import api_router
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine
 from app.errors import DomainError
+from app.realtime import redis_event_bridge
 from app.seed import seed_demo_data
 
 settings = get_settings()
@@ -26,7 +27,11 @@ async def lifespan(_app: FastAPI):
     if settings.seed_demo_data:
         with SessionLocal() as db:
             seed_demo_data(db)
-    yield
+    await redis_event_bridge.start()
+    try:
+        yield
+    finally:
+        await redis_event_bridge.stop()
 
 
 app = FastAPI(

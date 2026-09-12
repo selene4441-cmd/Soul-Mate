@@ -44,6 +44,24 @@ describe("UI 表达约束", () => {
     expect(allText).toContain("不太像");
     expect(allText).toContain("不确定");
   });
+
+  it("交流产品保留双向连接和安全退出入口", () => {
+    const allText = sources.map((source) => source.text).join("\n");
+    expect(allText).toContain("连接请求");
+    expect(allText).toContain("愿意聊聊");
+    expect(allText).toContain("交流提示");
+    expect(allText).toContain("结束交流");
+    expect(allText).toContain("拉黑");
+  });
+
+  it("交流页不展示在线和输入状态压力", () => {
+    const forbidden = [/在线状态/, /正在输入/, /精确已读/];
+    for (const source of sources) {
+      for (const pattern of forbidden) {
+        expect(source.text, `${source.file} 不应包含 ${pattern}`).not.toMatch(pattern);
+      }
+    }
+  });
 });
 
 describe("浏览器 API 边界", () => {

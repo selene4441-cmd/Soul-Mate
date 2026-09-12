@@ -137,11 +137,155 @@ export const apiOperations = [
     ]
   },
   {
+    "method": "GET",
+    "path": "/api/v1/recommendations/{candidate_id}/cues",
+    "operationId": "get_connection_cues_api_v1_recommendations__candidate_id__cues_get",
+    "tags": [
+      "matching"
+    ]
+  },
+  {
     "method": "POST",
     "path": "/api/v1/recommendations/{candidate_id}/actions",
     "operationId": "create_action_api_v1_recommendations__candidate_id__actions_post",
     "tags": [
       "matching"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/connection-requests",
+    "operationId": "create_request_api_v1_connection_requests_post",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/connection-requests",
+    "operationId": "get_requests_api_v1_connection_requests_get",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/connection-requests/{request_id}",
+    "operationId": "get_request_api_v1_connection_requests__request_id__get",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/connection-requests/{request_id}",
+    "operationId": "cancel_request_api_v1_connection_requests__request_id__delete",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/connection-requests/{request_id}/accept",
+    "operationId": "accept_request_api_v1_connection_requests__request_id__accept_post",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/connection-requests/{request_id}/decline",
+    "operationId": "decline_request_api_v1_connection_requests__request_id__decline_post",
+    "tags": [
+      "connections"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations",
+    "operationId": "get_conversations_api_v1_conversations_get",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations/{conversation_id}",
+    "operationId": "get_conversation_api_v1_conversations__conversation_id__get",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations/{conversation_id}/messages",
+    "operationId": "get_messages_api_v1_conversations__conversation_id__messages_get",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/conversations/{conversation_id}/messages",
+    "operationId": "create_message_api_v1_conversations__conversation_id__messages_post",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/conversations/{conversation_id}/close",
+    "operationId": "close_api_v1_conversations__conversation_id__close_post",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/conversations/{conversation_id}/read",
+    "operationId": "read_messages_api_v1_conversations__conversation_id__read_post",
+    "tags": [
+      "conversations"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/blocks",
+    "operationId": "get_blocks_api_v1_blocks_get",
+    "tags": [
+      "safety"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/blocks",
+    "operationId": "block_user_api_v1_blocks_post",
+    "tags": [
+      "safety"
+    ]
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/blocks/{user_id}",
+    "operationId": "unblock_user_api_v1_blocks__user_id__delete",
+    "tags": [
+      "safety"
+    ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/notifications",
+    "operationId": "get_notifications_api_v1_notifications_get",
+    "tags": [
+      "notifications"
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/notifications/{notification_id}/read",
+    "operationId": "read_notification_api_v1_notifications__notification_id__read_post",
+    "tags": [
+      "notifications"
     ]
   },
   {
@@ -155,7 +299,7 @@ export const apiOperations = [
   {
     "method": "GET",
     "path": "/api/v1/matches",
-    "operationId": "get_matches_api_v1_matches_get",
+    "operationId": "matches_api_v1_matches_get",
     "tags": [
       "interaction"
     ]
@@ -163,7 +307,7 @@ export const apiOperations = [
   {
     "method": "GET",
     "path": "/api/v1/matches/{match_id}/messages",
-    "operationId": "get_messages_api_v1_matches__match_id__messages_get",
+    "operationId": "messages_api_v1_matches__match_id__messages_get",
     "tags": [
       "interaction"
     ]
