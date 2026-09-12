@@ -218,11 +218,16 @@ def _get_note_by_id(db: Session, note_id: str) -> XhsNote | None:
     return db.execute(select(XhsNote).where(XhsNote.note_id == note_id)).scalar_one_or_none()
 
 
-def _apply_note_fields(note: XhsNote, data: dict[str, Any]) -> None:
+def _apply_note_fields(note: XhsNote, data: dict[str, Any], *, detail: bool = False) -> None:
     for field, value in data.items():
         if value is None:
             continue
         if isinstance(value, str) and value == "":
+            continue
+        if isinstance(value, (list, dict)) and not value:
+            continue
+
+        if not detail and field in {"title", "desc", "images", "tags"}:
             continue
 
         if field == "images":
@@ -273,13 +278,13 @@ def sync_notes(
         else:
             updated += 1
 
-        _apply_note_fields(note, item)
+        _apply_note_fields(note, item, detail=False)
         db.flush()
 
         if is_new or force_details or not note.desc:
             try:
-                detail = client.fetch_note_detail(note_id, item.get("note_type") or "")
-                _apply_note_fields(note, detail)
+                detail_data = client.fetch_note_detail(note_id, item.get("note_type") or "")
+                _apply_note_fields(note, detail_data, detail=True)
                 details += 1
             except TikhubError as exc:
                 note.sync_error = str(exc)
