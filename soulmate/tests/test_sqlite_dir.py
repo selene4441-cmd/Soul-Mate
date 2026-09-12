@@ -28,11 +28,13 @@ def test_creates_missing_parent_directory(scratch_dir: Path) -> None:
 
 
 def test_relative_path_is_supported(scratch_dir: Path) -> None:
+    # scratch_dir 是相对路径，chdir 之后就失效了，所以先取绝对路径
+    target = scratch_dir.resolve()
     previous = os.getcwd()
-    os.chdir(scratch_dir)
+    os.chdir(target)
     try:
         ensure_sqlite_parent_dir("sqlite+pysqlite:///./data/soulmate.db")
-        assert (scratch_dir / "data").is_dir()
+        assert (target / "data").is_dir()
     finally:
         os.chdir(previous)
 
