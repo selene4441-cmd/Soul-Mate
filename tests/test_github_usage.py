@@ -59,3 +59,16 @@ def test_shell_scripts_are_valid_when_bash_is_available():
             check=False,
         )
         assert result.returncode == 0, result.stderr
+
+
+def test_clean_checkout_typecheck_has_explicit_path_alias_base():
+    tsconfig = json.loads((ROOT / "apps" / "web" / "tsconfig.json").read_text(encoding="utf-8"))
+    assert tsconfig["compilerOptions"]["baseUrl"] == "."
+    assert tsconfig["compilerOptions"]["paths"]["@/*"] == ["./*"]
+
+
+def test_web_shared_modules_are_not_excluded_from_clean_checkout():
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "\n/lib/\n" in gitignore
+    for filename in ("api.ts", "auth.ts", "consent.ts"):
+        assert (ROOT / "apps" / "web" / "lib" / filename).is_file()
