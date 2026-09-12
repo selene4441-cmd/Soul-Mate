@@ -2,16 +2,21 @@
 
 一套可以直接交给前端开发的**接口契约**。基准代码：`soulmate` @ commit `e2d2401`（可由 `git log -1` 核对）。
 
+> 🚚 **第一次交付给别人？先看 [`HANDOFF.md`](HANDOFF.md)**：交付渠道、可直接复制发给前端的话、验收标准、边界约定。
+
 ## 文件构成
 
 | 文件 | 定位 | 怎么用 |
 |---|---|---|
-| `API-CONTRACT.md` | **人读契约**（主文档） | 先读它。接入方式、错误码表、状态机、逐接口、产品红线、联调 checklist 都在里面 |
-| `openapi.yaml` | **机器可读契约**（OpenAPI 3.1，25 路径 / 27 操作 / 40 schema） | 导入 Postman/Apifox；或 `npx @stoplight/prism-cli mock openapi.yaml --port 4010` 起 mock，不需要等后端 |
-| `../../web/lib/api/types.ts` | **TypeScript 类型**（40+ 类型，`--strict` 通过） | 直接 `import type { ... } from "@/lib/api/types"` |
+| `HANDOFF.md` | **交接说明**（给你自己看的） | 怎么交付、怎么验收、改动规则 |
+| `API-CONTRACT.md` | **人读契约**（主文档） | 接入方式、错误码表、状态机、逐接口、产品红线、联调 checklist |
+| `openapi.yaml` | **机器可读契约**（OpenAPI 3.1，25 路径 / 27 操作 / 40 schema） | 导入 Postman/Apifox；或 `npx @stoplight/prism-cli mock openapi.yaml --port 4010` 起 mock |
+| `../../web/lib/api/types.ts` | **TypeScript 类型**（`--strict` 通过） | 直接 `import type { ... } from "@/lib/api/types"` |
 | `../../web/lib/api/client.ts` | **类型化客户端**（无依赖） | 已封装同源代理、CSRF 双提交、统一错误、WebSocket 去重 |
-| `tools/validate-openapi.py` | 契约自检 | `python tools/validate-openapi.py`（校验 YAML 结构 + `$ref` 完整性 + tag 一致性） |
-| `tools/lint-yaml-plain.py` | 契约自检 | `python tools/lint-yaml-plain.py openapi.yaml`（抓非法的 YAML 纯量写法） |
+| `../../scripts/seed_demo.py` | **演示数据**（5 个账号覆盖四种状态） | `python -m scripts.seed_demo --reset` |
+| `../../scripts/smoke_e2e.py` | **可执行的验收标准**（17 项） | `python -m scripts.smoke_e2e` |
+| `tools/validate-openapi.py` | 契约自检 | `cd docs/api && python tools/validate-openapi.py` |
+| `tools/lint-yaml-plain.py` | 契约自检 | `python tools/lint-yaml-plain.py openapi.yaml` |
 
 ## 三条必须先知道的结论
 

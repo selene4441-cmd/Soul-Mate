@@ -4,7 +4,8 @@ import yaml
 
 REF = "$" + "ref"
 
-d = yaml.safe_load(open("openapi.yaml", encoding="utf-8"))
+with open("openapi.yaml", encoding="utf-8") as fh:
+    d = yaml.safe_load(fh)
 print("openapi:", d["openapi"])
 print("title:", d["info"]["title"], d["info"]["version"])
 print("paths:", len(d["paths"]))

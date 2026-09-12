@@ -8,7 +8,8 @@ import re
 import sys
 
 path = sys.argv[1] if len(sys.argv) > 1 else "openapi.yaml"
-lines = open(path, encoding="utf-8").read().split("\n")
+with open(path, encoding="utf-8") as fh:
+    lines = fh.read().split("\n")
 
 block_indent = None  # 块标量正文的缩进基准
 problems = []

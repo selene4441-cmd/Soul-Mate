@@ -752,7 +752,8 @@ components:
         code:
           type: string
           description: 机器可读错误码
-          examples: [CONSENT_REQUIRED, CSRF_INVALID, UNAUTHORIZED, VALIDATION_ERROR, HTTP_ERROR]
+          examples:
+            [CONSENT_REQUIRED, CSRF_INVALID, UNAUTHORIZED, VALIDATION_ERROR, UNSUPPORTED_SCOPE, HTTP_ERROR]
         message:
           type: string
           description: 面向开发者/用户的短消息（中文）
@@ -815,9 +816,17 @@ components:
       type: object
       required: [scope, purpose, granted_at]
       properties:
-        scope: { type: string }
+        scope:
+          type: string
+          description: "已支持的 scope：matching:v1 / conversation:v1 / outcomes:v1"
         purpose: { type: string }
-        granted_at: { type: string, format: date-time, examples: ["2026-09-12T10:00:00Z"] }
+        granted_at:
+          type: string
+          format: date-time
+          description: >-
+            ⚠️ 与其它接口不一致：目前返回 `2026-09-12T10:42:10.394960+00:00`
+            （带微秒、+00:00 后缀、没有 Z）。new Date() 能解析，但不要做字符串比较。
+          examples: ["2026-09-12T10:42:10.394960+00:00"]
 
     # ------------------------------------------------------------ questionnaire
     QuestionnaireOut:
@@ -960,8 +969,10 @@ components:
         display_name: { type: string, examples: [林屿] }
         headline:
           type: string
-          description: 卡片主文案，由证据组合生成（不是硬编码，也不是分数）
-          examples: ["你们在「生活节奏」上比较接近，而「沟通频率」还不太确定"]
+          description: >-
+            卡片主文案，由证据组合生成（不是硬编码，也不是分数）。
+            后端当前模板偏短（实测为「有一些共同点，也有一些差异」），前端不要写死预期文案或做长度假设。
+          examples: ["有一些共同点，也有一些差异"]
         common_signals:
           type: array
           items: { type: string }

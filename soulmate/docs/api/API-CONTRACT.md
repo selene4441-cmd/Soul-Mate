@@ -119,6 +119,7 @@ export function readCsrfToken(): string | null {
 - 所有请求带 `credentials: "include"`（同源代理下可省略，但建议保留）
 - 所有 id 均为 **字符串**（用户 id、match_id、claim id、evidence id 都是 string）
 - 所有时间为 **UTC ISO8601**，形如 `2026-09-12T10:00:00Z`
+  - ⚠️ **一个例外**：`GET/POST /api/v1/consents` 的 `granted_at` 目前返回 `2026-09-12T10:42:10.394960+00:00`（带微秒、`+00:00` 后缀，没有 `Z`），与其它接口不一致。`new Date()` 两种都能解析，但**别做字符串比较或截取**。已列入第 9 节待修
 - `GET` 不产生副作用；写操作除 `client_message_id`（消息幂等）外不做幂等保证
 
 ### 1.6 方案 B：后端加 CORS（如果不想写代理）
@@ -166,6 +167,7 @@ app.add_middleware(
 | 400 | `QUESTIONNAIRE_INCOMPLETE` | 必答题未答（`details.missing` 是缺失维度数组） | 滚动定位到缺失题 |
 | 400 | `UNKNOWN_QUESTION` | 提交了题库里没有的 dimension | 重新拉取问卷 |
 | 400 | `INVALID_ANSWER` | 选项 value 不在该题 options 内 | 重新拉取问卷 |
+| 400 | `UNSUPPORTED_SCOPE` | `POST /consents` 传了不支持的 scope（`details.scope`） | 检查前端写死的 scope 常量 |
 | 401 | `UNAUTHORIZED` | 未登录 / session 过期或已登出 | 跳登录页，清空本地态 |
 | 401 | `INVALID_CREDENTIALS` | 登录邮箱或密码错 | 表单内提示，不跳转 |
 | 403 | `CSRF_INVALID` | 缺少或不匹配 `X-CSRF-Token` | **检查 client 是否漏带头部**，不要提示用户 |
@@ -418,6 +420,14 @@ app.add_middleware(
 |---|---|
 | `matching:v1` | 提交问卷、读 claims、生成/读取推荐 |
 | `conversation:v1` | 发邀请、读写消息（**双方都需授权**） |
+| `outcomes:v1` | 后端已支持但当前无接口依赖它；前端不要主动申请 |
+
+传其它值 → `400 UNSUPPORTED_SCOPE`。
+
+两个副作用要知道：
+
+- 授权 `matching:v1`/`conversation:v1` 会**同时**写入旧字段 `user.consent = true` 与 `user.consent_scopes`。这是旧 agent 接口（`/users/{id}/*`）鉴权的依据，所以"授权 v1"顺带解锁了旧路径——这也是必须把旧路径收进 `/api/v1` 的原因之一。
+- `granted_at` 的时间格式与其它接口不同（见 1.5 的例外说明）。
 
 `GET` 返回已授权且未撤销的 `ConsentOut[]`。**前端必须在每次进入需要授权的动作前先查 `GET /api/v1/consents`**，不要靠本地缓存猜。
 
@@ -449,7 +459,7 @@ app.add_middleware(
 
 | 字段 | 怎么用 | 禁止 |
 |---|---|---|
-| `headline` | 作为卡片主文案，直接展示 | 不要把它改写成"匹配度 87%"这类带数字的句子 |
+| `headline` | 作为卡片主文案，直接展示。⚠️ 后端目前模板较短（实测为「有一些共同点，也有一些差异」），**不要在前端写死预期文案**，也不要用它做长度假设 | 不要把它改写成"匹配度 87%"这类带数字的句子 |
 | `common_signals` | 「共同点」区块 | — |
 | `differences` | 「差异」区块（中性、好奇的语气，不是缺点） | 不要用"不合适/冲突/扣分" |
 | `unknowns` | 「还不确定」区块 —— **这是产品的诚实感来源，不要藏起来** | 不要留空不渲染 |
@@ -610,7 +620,44 @@ app.add_middleware(
 
 ---
 
-## 7. 联调 Checklist（按顺序跑一遍即可验收）
+## 7. 联调 Checklist
+
+### 7.0 五分钟跑起来（用现成演示数据，别自己造）
+
+```bash
+cd F:\Codex\SoulMate\soulmate
+python -m alembic upgrade head          # 首次建表
+python -m scripts.seed_demo --reset     # 生成 5 个演示账号（密码统一 password123）
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+演示账号**正好覆盖四种 `space/state`**，切账号就能看到四种界面：
+
+| 账号 | 邮箱 | 登录后应看到 | 用途 |
+|---|---|---|---|
+| 林屿 | `demo1@example.com` | **MATCHING** | 已答题 + 已生成推荐 + 有一条待回应邀请 |
+| 苏晚 | `demo2@example.com` | **CHAT** | 已答题 + 有 connected match + 4 条聊天记录 |
+| 周聿 | `demo3@example.com` | **SELF_PROFILE_READY** | 已授权已答题，但还没生成过推荐 |
+| 何枝 | `demo4@example.com` | **EXPLORING** | 故意没答题 |
+| 温野 | `demo5@example.com` | CHAT | 配套账号，只用来和苏晚形成聊天 |
+
+> 种子脚本复用真实接口函数（不是手写 SQL），所以数据与线上代码路径一致；
+> 重复执行是幂等的，`--reset` 会先清掉这几个账号再重建。
+> ⚠️ 因为状态机里 `CHAT` 优先级最高，只要进了 connected match 就一定是 CHAT ——
+> 所以"聊天演示"需要温野这个独立账号，否则会把四个主账号的状态搅乱。
+
+### 7.1 自检脚本（17 项，含 CSRF / 幂等 / WebSocket / 产品红线）
+
+```bash
+cd F:\Codex\SoulMate\soulmate
+python -m scripts.smoke_e2e      # 需要先跑过 seed_demo
+```
+
+覆盖：登录与会话探测、CSRF 双提交（缺头必须 403）、四种状态机、推荐理由与 `evidence_ids`
+可溯源、响应无分数类字段、消息幂等、WebSocket 快照 + 回放、未鉴权 401。
+**这份脚本同时就是"什么叫验收通过"的可执行定义。**
+
+### 7.2 手工验收顺序（脚本之外还要人眼确认的）
 
 1. `POST /api/v1/auth/register` 建号 A → 断言收到两个 cookie、`auth/me` 返回自己
 2. `GET /api/v1/space/state` → 断言 `EXPLORING`
@@ -627,7 +674,7 @@ app.add_middleware(
 13. 故意不带 `X-CSRF-Token` 调 `POST /api/v1/consents` → 断言 `403 CSRF_INVALID`
 14. `POST /api/v1/auth/logout` → 再调 `auth/me` → 断言 `401`
 
-### 本地起服务
+### 本地起服务（等价命令）
 
 ```bash
 cd F:\Codex\SoulMate\soulmate
@@ -637,7 +684,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 # OpenAPI JSON：http://127.0.0.1:8000/openapi.json
 ```
 
-测试账号：通过 `POST /api/v1/auth/register` 自助创建（数据库里没有预置账号）。
+测试账号：`python -m scripts.seed_demo`（见 7.0）；也可以自己走 `POST /api/v1/auth/register` 建号。
 
 ---
 
@@ -661,4 +708,4 @@ npx @stoplight/prism-cli mock openapi.yaml --port 4010
 | 契约版本 | v1（`/api/v1`） |
 | 基准 commit | `e2d2401` |
 | 问卷版本 | `relationship-signals-v0.1`（由 `GET /api/v1/questionnaire` 返回，提交时必须回传） |
-| 已知待修（前端可先绕过） | ① `space/state.question.options` 恒为空 → 用 `GET /api/v1/questionnaire`；② 429 的 `code` 是 `HTTP_ERROR` → 按 HTTP 状态判断；③ WS `message.created` 缺 `sender_id`/`created_at`；④ agent 能力仍在旧根路径（见 4.2） |
+| 已知待修（前端可先绕过） | ① `space/state.question.options` 恒为空 → 用 `GET /api/v1/questionnaire`；② 429 的 `code` 是 `HTTP_ERROR` → 按 HTTP 状态判断；③ WS `message.created` 缺 `sender_id`/`created_at`；④ agent 能力仍在旧根路径（见 4.2）；⑤ `GET/POST /consents` 的 `granted_at` 用 `+00:00` 而非 `Z`，与其它接口不一致；⑥ `recommendations[].headline` 模板偏短，待丰富 |

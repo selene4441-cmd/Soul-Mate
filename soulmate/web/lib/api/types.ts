@@ -29,6 +29,7 @@ export type ApiErrorCode =
   | "INVALID_CREDENTIALS"
   | "CSRF_INVALID"
   | "CONSENT_REQUIRED"
+  | "UNSUPPORTED_SCOPE"
   | "FORBIDDEN"
   | "MATCH_NOT_CONNECTED"
   | "NOT_FOUND"
@@ -90,8 +91,12 @@ export interface LoginIn {
 
 /* -------------------------------------------------------------------- 授权 */
 
-/** `matching:v1` 解锁问卷/claims/推荐；`conversation:v1` 解锁邀请与消息（双方都要有） */
-export type ConsentScope = "matching:v1" | "conversation:v1";
+/**
+ * `matching:v1` 解锁问卷/claims/推荐；`conversation:v1` 解锁邀请与消息（双方都要有）；
+ * `outcomes:v1` 后端已支持但当前无接口依赖，前端不要主动申请。
+ * 传其它值 → 400 UNSUPPORTED_SCOPE。
+ */
+export type ConsentScope = "matching:v1" | "conversation:v1" | "outcomes:v1";
 
 export interface ConsentIn {
   scope: ConsentScope;
@@ -101,6 +106,10 @@ export interface ConsentIn {
 export interface ConsentOut {
   scope: ConsentScope | string;
   purpose: string;
+  /**
+   * ⚠️ 与其它接口不一致：目前是 `2026-09-12T10:42:10.394960+00:00`
+   * （带微秒、`+00:00` 后缀、没有 `Z`）。`new Date()` 能解析，但不要做字符串比较或截取。
+   */
   granted_at: IsoDateTime;
 }
 
