@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 
 from .models import XhsNote, XhsUser, utcnow
 from .normalize import ParsedIdentifier, parse_line
-from .schemas import CollectResult
+from .schemas import AccountUrlResponse, CollectResult
 from .tikhub import TikhubClient, TikhubError
+from .urls import profile_url_for
 
 
 def _get_by_user_id(db: Session, user_id: str) -> XhsUser | None:
@@ -20,6 +21,55 @@ def _get_by_user_id(db: Session, user_id: str) -> XhsUser | None:
 
 def _get_by_source(db: Session, source: str) -> XhsUser | None:
     return db.execute(select(XhsUser).where(XhsUser.source == source)).scalars().first()
+
+
+def resolve_account_url(account: str, client: TikhubClient) -> AccountUrlResponse:
+    """Resolve a single Xiaohongshu account input to its profile URL.
+
+    Only inputs that TikHub can resolve directly (profile link, share link, or
+    24-hex user_id) produce a profile URL. A bare red_id/nickname is returned
+    as needs_review so the caller can supply a resolvable identifier.
+    """
+    account = (account or "").strip()
+    if not account:
+        return AccountUrlResponse(account=account, status="invalid", message="请输入小红书账号")
+
+    parsed_items = parse_line(account)
+    if not parsed_items:
+        return AccountUrlResponse(account=account, status="invalid", message="无法识别该账号")
+
+    parsed = parsed_items[0]
+    if parsed.type == "red_id":
+        return AccountUrlResponse(
+            account=account,
+            status="needs_review",
+            red_id=parsed.value,
+            message="小红书号无法直接解析，请提供主页分享链接或 24 位 user_id",
+        )
+    if parsed.type not in {"user_id", "share_text"}:
+        return AccountUrlResponse(
+            account=account,
+            status="needs_review",
+            message="无法识别该账号，请提供主页分享链接或 24 位 user_id",
+        )
+
+    try:
+        fields = client.fetch_user(parsed)
+    except TikhubError as exc:
+        return AccountUrlResponse(account=account, status="failed", message=str(exc))
+
+    user_id = fields.get("user_id")
+    if not user_id:
+        return AccountUrlResponse(account=account, status="failed", message="未能从接口解析出用户 ID")
+
+    return AccountUrlResponse(
+        account=account,
+        status="fetched",
+        profile_url=profile_url_for(user_id),
+        user_id=user_id,
+        nickname=fields.get("nickname"),
+        red_id=fields.get("red_id"),
+    )
 
 
 def _apply_fields(lead: XhsUser, parsed: ParsedIdentifier, fields: dict[str, Any]) -> None:
@@ -134,6 +184,7 @@ def collect_identifiers(
                             status="created" if created else "updated",
                             user_id=lead.user_id,
                             nickname=lead.nickname,
+                            profile_url=profile_url_for(lead.user_id),
                             lead_id=lead.id,
                         )
                     )

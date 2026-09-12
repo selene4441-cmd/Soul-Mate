@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
+from .urls import profile_url_for
 
 
 def utcnow() -> datetime:
@@ -38,6 +39,11 @@ class XhsUser(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
+    @property
+    def profile_url(self) -> str | None:
+        return profile_url_for(self.user_id)
+
+
 class XhsNote(Base):
     __tablename__ = "xhs_notes"
     __table_args__ = (UniqueConstraint("note_id", name="uq_xhs_notes_note_id"),)
@@ -62,3 +68,4 @@ class XhsNote(Base):
     raw_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+

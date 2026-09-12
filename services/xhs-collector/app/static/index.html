@@ -21,6 +21,10 @@
     a.ghost { text-decoration:none; padding:10px 16px; border:1px solid var(--line); border-radius:8px; color:var(--text); }
     .hint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.6; }
     .summary { color:var(--muted); font-size:13px; }
+    .inline-input { flex:1; min-width:320px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; font:inherit; }
+    .url-result { display:none; margin-top:12px; padding:12px; background:#fff7f8; border:1px solid #ffd6dc; border-radius:8px; }
+    .url-result .url { font-weight:600; color:var(--brand); word-break:break-all; }
+    .url-result .msg { color:var(--muted); margin:6px 0 0; font-size:13px; }
     table { width:100%; border-collapse:collapse; font-size:13px; }
     th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
     th { color:var(--muted); font-weight:600; white-space:nowrap; }
@@ -43,6 +47,14 @@
     <p>把客户在微信群里分享的小红书账号粘贴进来，自动拉取公开资料并存入数据库</p>
   </header>
   <main>
+    <section class="card">
+      <h2 style="margin:0 0 10px;font-size:16px;">账号转网址</h2>
+      <div class="row" style="margin-top:0;">
+        <input id="urlInput" class="inline-input" placeholder="输入小红书账号：主页链接 / 分享短链 / 24 位 user_id / 小红书号" />
+        <button id="urlBtn" onclick="resolveUrl()">生成主页网址</button>
+      </div>
+      <div id="urlResult" class="url-result"></div>
+    </section>
     <section class="card">
       <textarea id="input" placeholder="每行粘贴一个账号，支持：&#10;1. 主页链接：https://www.xiaohongshu.com/user/profile/61b46d790000000010008153&#10;2. 分享短链：http://xhslink.com/a/xxxx&#10;3. 24位 hex user_id：61b46d790000000010008153&#10;4. 小红书号：757954382（需后续补链接解析）"></textarea>
       <div class="row">
@@ -89,6 +101,51 @@
       }
     }
 
+    async function resolveUrl() {
+      const input = document.getElementById('urlInput');
+      const account = input.value.trim();
+      const result = document.getElementById('urlResult');
+      if (!account) { alert('请输入小红书账号'); return; }
+      const btn = document.getElementById('urlBtn');
+      btn.disabled = true; btn.textContent = '解析中…';
+      result.style.display = 'none';
+      try {
+        const res = await fetch('/api/v1/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account })
+        });
+        const data = await res.json();
+        result.style.display = 'block';
+        if (data.profile_url) {
+          result.innerHTML = '<div class="msg">主页网址（点击打开，或复制）：</div>'
+            + '<a class="url" href="' + esc(data.profile_url) + '" target="_blank" rel="noreferrer">' + esc(data.profile_url) + '</a>'
+            + ' <button class="ghost" onclick="copyUrl(this)">复制</button>'
+            + (data.nickname ? '<div class="msg">昵称：' + esc(data.nickname) + '</div>' : '');
+        } else {
+          result.innerHTML = '<div class="msg">' + esc(data.message || '未能解析出主页网址') + '</div>';
+        }
+      } catch (e) {
+        result.style.display = 'block';
+        result.innerHTML = '<div class="msg">请求失败: ' + esc(e.message) + '</div>';
+      } finally {
+        btn.disabled = false; btn.textContent = '生成主页网址';
+      }
+    }
+
+    function copyUrl(el) {
+      const link = el.previousElementSibling;
+      const text = link ? link.textContent : '';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function () {
+          el.textContent = '已复制';
+          setTimeout(function () { el.textContent = '复制'; }, 1500);
+        }, function () { alert('复制失败，请手动复制'); });
+      } else {
+        alert('当前浏览器不支持一键复制，请手动复制');
+      }
+    }
+
     async function refreshNow() {
       const btn = document.getElementById('refreshBtn');
       btn.disabled = true; btn.textContent = '刷新中…';
@@ -129,6 +186,7 @@
         if (item.status === 'fetched') {
           action += ` <button class="ghost" onclick="toggleNotes(${item.id})">笔记</button>`;
         }
+        const profile = item.profile_url ? '<a href="' + esc(item.profile_url) + '" target="_blank" rel="noreferrer">打开主页</a>' : '';
         return `<tr>
           <td>${item.id}</td>
           <td>${badge}</td>
@@ -139,6 +197,7 @@
           <td>${num(item.notes_count)}</td>
           <td>${esc(item.ip_location || '')}</td>
           <td>${fmtTime(item.last_refreshed_at)}</td>
+          <td>${profile}</td>
           <td>${note(item)}</td>
           <td>${action}</td>
         </tr>`;
@@ -146,7 +205,7 @@
       wrap.innerHTML = `<table>
         <thead><tr>
           <th>ID</th><th>状态</th><th>昵称</th><th>小红书号/UID</th>
-          <th>粉丝</th><th>关注</th><th>笔记</th><th>地区</th><th>最近刷新</th><th>备注</th><th></th>
+          <th>粉丝</th><th>关注</th><th>笔记</th><th>地区</th><th>最近刷新</th><th>主页</th><th>备注</th><th></th>
         </tr></thead><tbody>${rows}</tbody></table>`;
     }
 

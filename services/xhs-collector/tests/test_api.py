@@ -90,3 +90,92 @@ def test_notes_sync_and_list_endpoints(client):
     assert body["total"] == 1
     assert body["items"][0]["desc"] == "完整正文内容"
     assert body["items"][0]["tags"] == ["tag1", "tag2"]
+
+
+def test_collect_includes_profile_url(client):
+    response = client.post("/api/v1/collect", json={"text": "61b46d790000000010008153"})
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
+
+    response = client.get("/api/v1/leads")
+    lead = response.json()["items"][0]
+    assert lead["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
+
+
+def test_account_to_url_for_user_id(client):
+    response = client.post("/api/v1/url", json={"account": "61b46d790000000010008153"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "fetched"
+    assert body["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
+    assert body["nickname"] == "测试用户"
+
+
+def test_account_to_url_for_share_text(client):
+    response = client.post("/api/v1/url", json={"account": "http://xhslink.com/a/xyz"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "fetched"
+    assert body["profile_url"] == "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153"
+
+
+def test_account_to_url_for_red_id(client):
+    response = client.post("/api/v1/url", json={"account": "757954382"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "needs_review"
+    assert body["profile_url"] is None
+    assert body["red_id"] == "757954382"
+
+
+def test_account_to_url_for_unknown_text(client):
+    response = client.post("/api/v1/url", json={"account": "大家好，这是我的客户"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "needs_review"
+    assert body["profile_url"] is None
+
+
+def test_account_to_url_empty(client):
+    response = client.post("/api/v1/url", json={"account": ""})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "invalid"
+    assert body["profile_url"] is None
+
+
+def test_account_to_url_failure():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    settings = Settings(
+        database_url="sqlite://",
+        tikhub_api_key="test-key",
+        request_interval_seconds=0,
+        refresh_enabled=False,
+        auto_create_db=True,
+    )
+    app = create_app(
+        settings=settings,
+        engine=engine,
+        client=FakeTikhubClient(fail_values={"000000000000000000000000"}),
+    )
+    with TestClient(app) as test_client:
+        response = test_client.post(
+            "/api/v1/url",
+            json={"account": "000000000000000000000000"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert "账号不存在" in body["message"]
+
+
+def test_export_csv_includes_profile_url(client):
+    client.post("/api/v1/collect", json={"text": "61b46d790000000010008153"})
+    response = client.get("/api/v1/leads/export.csv")
+    assert response.status_code == 200
+    assert "https://www.xiaohongshu.com/user/profile/61b46d790000000010008153" in response.text

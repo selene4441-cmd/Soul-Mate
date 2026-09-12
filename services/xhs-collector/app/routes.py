@@ -13,18 +13,28 @@ from .dependencies import get_db
 from .models import XhsNote, XhsUser
 from .normalize import ParsedIdentifier
 from .schemas import (
-    NoteList,
-    NoteOut,
+    AccountUrlRequest,
+    AccountUrlResponse,
     CollectRequest,
     CollectResponse,
     LeadList,
     LeadOut,
+    NoteList,
+    NoteOut,
     ResolveRequest,
 )
-from .service import collect_identifiers, refresh_all, resolve_lead, sync_notes
+from .service import collect_identifiers, refresh_all, resolve_account_url, resolve_lead, sync_notes
+from .urls import profile_url_for
 from .tikhub import TikhubError
 
 router = APIRouter()
+
+
+@router.post("/api/v1/url", response_model=AccountUrlResponse)
+def account_to_url(req: AccountUrlRequest, request: Request) -> AccountUrlResponse:
+    """输入小红书账号，输出该账号主页网址。"""
+    client = request.app.state.tikhub
+    return resolve_account_url(req.account, client)
 
 
 @router.post("/api/v1/collect", response_model=CollectResponse)
@@ -70,7 +80,7 @@ def export_csv(db: Session = Depends(get_db)) -> Response:
     writer = csv.writer(buffer)
     writer.writerow(
         [
-            "id", "source", "identifier_type", "user_id", "red_id", "nickname",
+            "id", "source", "identifier_type", "user_id", "red_id", "profile_url", "nickname",
             "gender", "ip_location", "followers_count", "following_count",
             "notes_count", "interaction_count", "status", "error", "created_at",
         ]
@@ -78,7 +88,7 @@ def export_csv(db: Session = Depends(get_db)) -> Response:
     for lead in rows:
         writer.writerow(
             [
-                lead.id, lead.source, lead.identifier_type, lead.user_id, lead.red_id,
+                lead.id, lead.source, lead.identifier_type, lead.user_id, lead.red_id, profile_url_for(lead.user_id) or "",
                 lead.nickname, lead.gender, lead.ip_location, lead.followers_count,
                 lead.following_count, lead.notes_count, lead.interaction_count,
                 lead.status, lead.error, lead.created_at.isoformat() if lead.created_at else "",
