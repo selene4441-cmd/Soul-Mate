@@ -11,13 +11,14 @@
     header { background:var(--brand); color:#fff; padding:18px 24px; }
     header h1 { margin:0; font-size:20px; }
     header p { margin:4px 0 0; opacity:.9; font-size:13px; }
-    main { max-width:1080px; margin:24px auto; padding:0 16px; }
+    main { max-width:1180px; margin:24px auto; padding:0 16px; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
     textarea { width:100%; min-height:140px; border:1px solid var(--line); border-radius:8px; padding:12px; font:inherit; resize:vertical; }
     .row { display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap; }
     button { border:0; border-radius:8px; padding:10px 16px; font:inherit; cursor:pointer; background:var(--brand); color:#fff; }
     button.ghost { background:#fff; color:var(--text); border:1px solid var(--line); }
     button:disabled { opacity:.6; cursor:not-allowed; }
+    a.ghost { text-decoration:none; padding:10px 16px; border:1px solid var(--line); border-radius:8px; color:var(--text); }
     .hint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.6; }
     .summary { color:var(--muted); font-size:13px; }
     table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -42,11 +43,13 @@
       <div class="row">
         <button id="collectBtn" onclick="collect()">开始采集</button>
         <button class="ghost" onclick="load()">刷新列表</button>
-        <a id="exportLink" class="ghost" style="text-decoration:none;padding:10px 16px;border:1px solid var(--line);border-radius:8px;color:var(--text)" href="/api/v1/leads/export.csv">导出 CSV</a>
+        <button id="refreshBtn" class="ghost" onclick="refreshNow()">立即刷新数据</button>
+        <a class="ghost" href="/api/v1/leads/export.csv">导出 CSV</a>
       </div>
       <div class="hint">
         微信群里的“分享用户”会生成一段含短链的文字，直接把整段文字粘贴进来即可（支持多行）。
         小红书号（数字）无法被 Tikhub 直接解析，会进入“待解析”，点列表里的“解析”补主页链接即可。
+        后台会按配置定时增量刷新已入库账号的粉丝数/笔记数，也可以点“立即刷新数据”手动触发。
       </div>
     </section>
 
@@ -80,6 +83,21 @@
       }
     }
 
+    async function refreshNow() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true; btn.textContent = '刷新中…';
+      try {
+        const res = await fetch('/api/v1/refresh', { method: 'POST' });
+        const data = await res.json();
+        alert(`刷新完成：共 ${data.total}，成功 ${data.refreshed}，失败 ${data.failed}`);
+        await load();
+      } catch (e) {
+        alert('刷新失败: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '立即刷新数据';
+      }
+    }
+
     async function load() {
       const res = await fetch('/api/v1/leads?limit=500');
       const data = await res.json();
@@ -109,14 +127,15 @@
           <td>${num(item.following_count)}</td>
           <td>${num(item.notes_count)}</td>
           <td>${esc(item.ip_location || '')}</td>
-          <td>${item.error ? '<span title="'+esc(item.error)+'">'+esc(item.error.slice(0,20))+'…</span>' : ''}</td>
+          <td>${fmtTime(item.last_refreshed_at)}</td>
+          <td>${note(item)}</td>
           <td>${action}</td>
         </tr>`;
       }).join('');
       wrap.innerHTML = `<table>
         <thead><tr>
           <th>ID</th><th>状态</th><th>昵称</th><th>小红书号/UID</th>
-          <th>粉丝</th><th>关注</th><th>笔记</th><th>地区</th><th>备注</th><th></th>
+          <th>粉丝</th><th>关注</th><th>笔记</th><th>地区</th><th>最近刷新</th><th>备注</th><th></th>
         </tr></thead><tbody>${rows}</tbody></table>`;
     }
 
@@ -145,6 +164,18 @@
     function statusLabel(s) { return { fetched:'已入库', needs_review:'待解析', failed:'失败', skipped:'跳过' }[s] || s; }
     function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function num(n) { return n == null ? '-' : Number(n).toLocaleString('zh-CN'); }
+    function fmtTime(s) {
+      if (!s) return '-';
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? String(s) : d.toLocaleString('zh-CN', { hour12: false });
+    }
+    function note(item) {
+      const msgs = [];
+      if (item.error) msgs.push(item.error);
+      if (item.refresh_error) msgs.push('刷新失败: ' + item.refresh_error);
+      const text = msgs.join(' / ');
+      return text ? '<span title="' + esc(text) + '">' + esc(text.slice(0, 18)) + '…</span>' : '';
+    }
 
     load();
   </script>

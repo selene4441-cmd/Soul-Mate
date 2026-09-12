@@ -18,7 +18,7 @@ from .schemas import (
     LeadOut,
     ResolveRequest,
 )
-from .service import collect_identifiers, resolve_lead
+from .service import collect_identifiers, refresh_all, resolve_lead
 from .tikhub import TikhubError
 
 router = APIRouter()
@@ -119,3 +119,9 @@ def resolve(lead_id: int, req: ResolveRequest, request: Request, db: Session = D
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+@router.post("/api/v1/refresh")
+def refresh_now(request: Request, db: Session = Depends(get_db)) -> dict[str, int]:
+    client = request.app.state.tikhub
+    interval = request.app.state.settings.request_interval_seconds
+    return refresh_all(db, client, interval=interval)

@@ -5,7 +5,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base
 from app.models import XhsUser
-from app.service import collect_identifiers
+from app.service import collect_identifiers, refresh_all
+from app.tikhub import TikhubError
 from fakes import FakeTikhubClient
 
 
@@ -61,3 +62,96 @@ def test_collect_failed_uid_is_recorded(db):
     results = collect_identifiers(db, "000000000000000000000000", client, interval=0)
     assert results[0].status == "failed"
     assert db.query(XhsUser).one().status == "failed"
+
+def test_refresh_all_updates_counts_and_timestamp(db):
+    lead = XhsUser(
+        source="61b46d790000000010008153",
+        identifier_type="user_id",
+        user_id="61b46d790000000010008153",
+        nickname="旧昵称",
+        status="fetched",
+        followers_count=1200,
+    )
+    db.add(lead)
+    db.commit()
+
+    class Client:
+        def fetch_user(self, parsed):
+            return {
+                "user_id": parsed.user_id,
+                "nickname": "新昵称",
+                "followers_count": 2000,
+                "following_count": 400,
+                "notes_count": 100,
+                "interaction_count": 99999,
+                "raw_json": "{}",
+            }
+
+        def close(self):
+            pass
+
+    summary = refresh_all(db, Client(), interval=0)
+    db.refresh(lead)
+
+    assert summary == {"total": 1, "refreshed": 1, "failed": 0}
+    assert lead.followers_count == 2000
+    assert lead.notes_count == 100
+    assert lead.nickname == "新昵称"
+    assert lead.last_refreshed_at is not None
+    assert lead.refresh_error is None
+
+
+def test_refresh_all_skips_needs_review(db):
+    db.add(XhsUser(source="757954382", identifier_type="red_id", status="needs_review"))
+    db.add(
+        XhsUser(
+            source="61b46d790000000010008153",
+            identifier_type="user_id",
+            user_id="61b46d790000000010008153",
+            status="fetched",
+        )
+    )
+    db.commit()
+
+    class Client:
+        def __init__(self):
+            self.calls = 0
+
+        def fetch_user(self, parsed):
+            self.calls += 1
+            return {"user_id": parsed.user_id, "nickname": "x", "followers_count": 1, "raw_json": "{}"}
+
+        def close(self):
+            pass
+
+    client = Client()
+    summary = refresh_all(db, client, interval=0)
+
+    assert summary == {"total": 1, "refreshed": 1, "failed": 0}
+    assert client.calls == 1
+
+
+def test_refresh_all_records_error_and_keeps_old_data(db):
+    lead = XhsUser(
+        source="61b46d790000000010008153",
+        identifier_type="user_id",
+        user_id="61b46d790000000010008153",
+        status="fetched",
+        followers_count=1200,
+    )
+    db.add(lead)
+    db.commit()
+
+    class Client:
+        def fetch_user(self, parsed):
+            raise TikhubError("账号不存在")
+
+        def close(self):
+            pass
+
+    summary = refresh_all(db, Client(), interval=0)
+    db.refresh(lead)
+
+    assert summary == {"total": 1, "refreshed": 0, "failed": 1}
+    assert lead.refresh_error == "账号不存在"
+    assert lead.followers_count == 1200

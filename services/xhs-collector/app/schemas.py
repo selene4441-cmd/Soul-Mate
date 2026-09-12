@@ -43,6 +43,8 @@ class LeadOut(BaseModel):
     interaction_count: int | None
     status: str
     error: str | None
+    last_refreshed_at: datetime | None
+    refresh_error: str | None
     created_at: datetime
     updated_at: datetime
 

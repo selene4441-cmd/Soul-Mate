@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     request_interval_seconds: float = 0.3
     auto_create_db: bool = True
 
+    # 定时增量刷新：服务运行时后台自动执行，间隔单位为秒
+    refresh_enabled: bool = True
+    refresh_interval_seconds: int = 3600
+
 
 @lru_cache
 def get_settings() -> Settings:

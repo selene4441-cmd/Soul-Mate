@@ -56,6 +56,7 @@ Copy-Item .env.example .env
 | GET | `/api/v1/leads/{id}` | 单条记录 |
 | POST | `/api/v1/leads/{id}/resolve` | 给“待解析”记录补 `user_id`/`share_text` |
 | GET | `/api/v1/leads/export.csv` | 导出 CSV |
+| POST | `/api/v1/refresh` | 立即执行一次增量刷新 |
 
 ## 支持的账号输入格式
 
@@ -74,6 +75,17 @@ Copy-Item .env.example .env
 
 测试使用内存 SQLite 和 Fake TikHub 客户端，不产生真实网络请求。
 
+## 定时增量刷新
+
+- 服务运行时，后台线程会按 `REFRESH_INTERVAL_SECONDS`（默认 3600 秒）自动刷新所有已入库账号的粉丝数、关注数、笔记数、互动数；设 `REFRESH_ENABLED=false` 可关闭后台定时。
+- 也可手动触发：`POST /api/v1/refresh`，或页面上点“立即刷新数据”。
+- 不想常驻服务时，可把 `refresh.py` 交给 Windows 计划任务 / cron 定时执行：
+
+```powershell
+..\..\.python312\python.exe refresh.py
+```
+
+刷新失败的账号会记录在 `refresh_error`，不影响已有数据，下轮继续尝试。
 ## 合规提醒
 
 - 抖音/小红书/微信官方均不开放此类批量拉取能力，TikHub 是第三方接口，存在接口失效、账号风控风险。

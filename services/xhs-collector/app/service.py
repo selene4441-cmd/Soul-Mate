@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import XhsUser
+from .models import XhsUser, utcnow
 from .normalize import ParsedIdentifier, parse_line
 from .schemas import CollectResult
 from .tikhub import TikhubClient, TikhubError
@@ -179,3 +179,33 @@ def resolve_lead(db: Session, lead_id: int, parsed: ParsedIdentifier, client: Ti
     db.commit()
     db.refresh(lead)
     return lead
+
+def refresh_all(db: Session, client: TikhubClient, interval: float = 0.3) -> dict[str, int]:
+    """Incrementally refresh fans/notes counts for every fetched lead with a user_id."""
+    leads = db.execute(
+        select(XhsUser)
+        .where(XhsUser.status == "fetched", XhsUser.user_id.is_not(None))
+        .order_by(XhsUser.last_refreshed_at.is_(None).desc(), XhsUser.last_refreshed_at.asc())
+    ).scalars().all()
+
+    total = len(leads)
+    refreshed = 0
+    failed = 0
+
+    for lead in leads:
+        parsed = ParsedIdentifier(type="user_id", value=lead.user_id or "", user_id=lead.user_id)
+        try:
+            fields = client.fetch_user(parsed)
+        except TikhubError as exc:
+            lead.refresh_error = str(exc)
+            failed += 1
+        else:
+            _apply_fields(lead, parsed, fields)
+            lead.last_refreshed_at = utcnow()
+            lead.refresh_error = None
+            refreshed += 1
+        finally:
+            time.sleep(interval)
+
+    db.commit()
+    return {"total": total, "refreshed": refreshed, "failed": failed}

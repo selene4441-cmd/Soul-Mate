@@ -19,6 +19,7 @@ def client():
         database_url="sqlite://",
         tikhub_api_key="test-key",
         request_interval_seconds=0,
+        refresh_enabled=False,
         auto_create_db=True,
     )
     app = create_app(settings=settings, engine=engine, client=FakeTikhubClient())
@@ -66,3 +67,11 @@ def test_index_page_serves_ui(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "小红书客户数据采集" in response.text
+
+def test_refresh_endpoint(client):
+    client.post("/api/v1/collect", json={"text": "61b46d790000000010008153"})
+    response = client.post("/api/v1/refresh")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["refreshed"] >= 1
+    assert data["failed"] == 0
