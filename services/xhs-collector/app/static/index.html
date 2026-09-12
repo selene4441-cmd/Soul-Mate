@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>小红书客户数据采集</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --line:#e5e7eb; --text:#1f2329; --muted:#6b7280; --brand:#ff2442; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
+    header { background:var(--brand); color:#fff; padding:18px 24px; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:4px 0 0; opacity:.9; font-size:13px; }
+    main { max-width:1080px; margin:24px auto; padding:0 16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+    textarea { width:100%; min-height:140px; border:1px solid var(--line); border-radius:8px; padding:12px; font:inherit; resize:vertical; }
+    .row { display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+    button { border:0; border-radius:8px; padding:10px 16px; font:inherit; cursor:pointer; background:var(--brand); color:#fff; }
+    button.ghost { background:#fff; color:var(--text); border:1px solid var(--line); }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .hint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.6; }
+    .summary { color:var(--muted); font-size:13px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--muted); font-weight:600; white-space:nowrap; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .fetched { background:#dcfce7; color:var(--ok); }
+    .needs_review { background:#fef3c7; color:var(--warn); }
+    .failed { background:#fee2e2; color:var(--bad); }
+    .empty { color:var(--muted); padding:24px; text-align:center; }
+    footer { color:var(--muted); font-size:12px; text-align:center; padding:20px; line-height:1.7; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>小红书客户数据采集</h1>
+    <p>把客户在微信群里分享的小红书账号粘贴进来，自动拉取公开资料并存入数据库</p>
+  </header>
+  <main>
+    <section class="card">
+      <textarea id="input" placeholder="每行粘贴一个账号，支持：&#10;1. 主页链接：https://www.xiaohongshu.com/user/profile/61b46d790000000010008153&#10;2. 分享短链：http://xhslink.com/a/xxxx&#10;3. 24位 hex user_id：61b46d790000000010008153&#10;4. 小红书号：757954382（需后续补链接解析）"></textarea>
+      <div class="row">
+        <button id="collectBtn" onclick="collect()">开始采集</button>
+        <button class="ghost" onclick="load()">刷新列表</button>
+        <a id="exportLink" class="ghost" style="text-decoration:none;padding:10px 16px;border:1px solid var(--line);border-radius:8px;color:var(--text)" href="/api/v1/leads/export.csv">导出 CSV</a>
+      </div>
+      <div class="hint">
+        微信群里的“分享用户”会生成一段含短链的文字，直接把整段文字粘贴进来即可（支持多行）。
+        小红书号（数字）无法被 Tikhub 直接解析，会进入“待解析”，点列表里的“解析”补主页链接即可。
+      </div>
+    </section>
+
+    <section class="card">
+      <div id="summary" class="summary"></div>
+      <div id="tableWrap"></div>
+    </section>
+  </main>
+  <footer>仅采集客户主动提供的公开资料；请确保已获得客户同意并遵守《个人信息保护法》与平台规则。</footer>
+
+  <script>
+    async function collect() {
+      const input = document.getElementById('input');
+      const text = input.value.trim();
+      if (!text) { alert('请先粘贴账号'); return; }
+      const btn = document.getElementById('collectBtn');
+      btn.disabled = true; btn.textContent = '采集中…';
+      try {
+        const res = await fetch('/api/v1/collect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        renderSummary(data.summary);
+        await load();
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = '开始采集';
+      }
+    }
+
+    async function load() {
+      const res = await fetch('/api/v1/leads?limit=500');
+      const data = await res.json();
+      renderTable(data.items || []);
+    }
+
+    function renderSummary(summary) {
+      if (!summary) return;
+      const labels = { created:'新增', updated:'更新', failed:'失败', needs_review:'待解析', skipped:'跳过' };
+      const parts = Object.entries(summary).map(([k,v]) => `${labels[k] || k} ${v}`).join('，');
+      document.getElementById('summary').textContent = '本次结果：' + parts;
+    }
+
+    function renderTable(items) {
+      const wrap = document.getElementById('tableWrap');
+      if (!items.length) { wrap.innerHTML = '<div class="empty">暂无数据</div>'; return; }
+      const rows = items.map(item => {
+        const badge = `<span class="badge ${item.status}">${statusLabel(item.status)}</span>`;
+        const action = (item.status === 'needs_review' || item.status === 'failed')
+          ? `<button class="ghost" onclick="resolve(${item.id})">解析</button>` : '';
+        return `<tr>
+          <td>${item.id}</td>
+          <td>${badge}</td>
+          <td>${esc(item.nickname || '')}</td>
+          <td>${esc(item.red_id || item.user_id || '')}</td>
+          <td>${num(item.followers_count)}</td>
+          <td>${num(item.following_count)}</td>
+          <td>${num(item.notes_count)}</td>
+          <td>${esc(item.ip_location || '')}</td>
+          <td>${item.error ? '<span title="'+esc(item.error)+'">'+esc(item.error.slice(0,20))+'…</span>' : ''}</td>
+          <td>${action}</td>
+        </tr>`;
+      }).join('');
+      wrap.innerHTML = `<table>
+        <thead><tr>
+          <th>ID</th><th>状态</th><th>昵称</th><th>小红书号/UID</th>
+          <th>粉丝</th><th>关注</th><th>笔记</th><th>地区</th><th>备注</th><th></th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    async function resolve(id) {
+      const value = prompt('请输入该用户的主页分享链接或 24 位 user_id：');
+      if (!value) return;
+      const isLink = /^https?:\/\//i.test(value);
+      const body = isLink ? { share_text: value } : { user_id: value };
+      try {
+        const res = await fetch(`/api/v1/leads/${id}/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('解析失败: ' + (err.detail || res.status));
+          return;
+        }
+        await load();
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      }
+    }
+
+    function statusLabel(s) { return { fetched:'已入库', needs_review:'待解析', failed:'失败', skipped:'跳过' }[s] || s; }
+    function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function num(n) { return n == null ? '-' : Number(n).toLocaleString('zh-CN'); }
+
+    load();
+  </script>
+</body>
+</html>
